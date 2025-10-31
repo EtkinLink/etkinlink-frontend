@@ -39,12 +39,16 @@ interface EventDetail {
   updated_at: string
   owner_username: string
   event_type: string
-  participant_count: number
+  participant_count: number // ✅ participant_count burada number olarak doğru
   participants: Array<{
     id: number
     username: string
     status: string
   }>
+  // ✅ Backend'den (get_event_by_id) bu iki alan da gelmeli
+  owner_user_id: number
+  type_id: number | null
+  club_id: number | null
 }
 
 export default function EventDetailPage() {
@@ -56,19 +60,28 @@ export default function EventDetailPage() {
   const [isJoining, setIsJoining] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
+  const [isMounted, setIsMounted] = useState(false) // Hydration için
 
   useEffect(() => {
+    setIsMounted(true) // İstemcide yüklendiğini belirt
     fetchEvent()
   }, [params.id])
+
+  // user objesi değiştiğinde (login/logout) 'hasJoined' durumunu yeniden hesapla
+  useEffect(() => {
+    if (user && event && event.participants) {
+      setHasJoined(event.participants.some((p: any) => p.username === user.username))
+    } else {
+      setHasJoined(false)
+    }
+  }, [user, event]) // 'event' veya 'user' yüklendiğinde çalışır
 
   const fetchEvent = async () => {
     try {
       const data = await api.getEvent(Number(params.id))
       setEvent(data)
-      // Check if current user has joined
-      if (user && data.participants) {
-        setHasJoined(data.participants.some((p: any) => p.username === user.username))
-      }
+      // ✅ 'user' state'i bu ilk 'fetchEvent' sırasında henüz 'null' olabilir.
+      // Bu yüzden 'hasJoined' kontrolünü yukarıdaki ayrı useEffect'e taşıdık.
     } catch (error) {
       console.error("Failed to fetch event:", error)
     } finally {
@@ -77,11 +90,15 @@ export default function EventDetailPage() {
   }
 
   const handleJoin = async () => {
+    if (!user) { // Giriş yapmamışsa
+      router.push("/auth/login")
+      return
+    }
     if (!event) return
     setIsJoining(true)
     try {
       await api.joinEvent(event.id)
-      await fetchEvent()
+      await fetchEvent() // Veriyi tazelemek için
     } catch (error: any) {
       alert(error.message || "Failed to join event")
     } finally {
@@ -90,11 +107,15 @@ export default function EventDetailPage() {
   }
 
   const handleLeave = async () => {
+    if (!user) { // Giriş yapmamışsa
+      router.push("/auth/login")
+      return
+    }
     if (!event) return
     setIsJoining(true)
     try {
       await api.leaveEvent(event.id)
-      await fetchEvent()
+      await fetchEvent() // Veriyi tazelemek için
     } catch (error: any) {
       alert(error.message || "Failed to leave event")
     } finally {
@@ -107,14 +128,15 @@ export default function EventDetailPage() {
     setIsDeleting(true)
     try {
       await api.deleteEvent(event.id)
-      router.push("/events")
+      router.push("/events") // Başarılı silme sonrası etkinlikler sayfasına dön
     } catch (error: any) {
       alert(error.message || "Failed to delete event")
       setIsDeleting(false)
     }
   }
 
-  if (isLoading) {
+  // Hydration hatasını önlemek için (tarih formatlaması var)
+  if (!isMounted || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -131,6 +153,7 @@ export default function EventDetailPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-center">Event not found</p>
+            {/* ✅ "Geri Dön" butonu layout'ta değil, burada olmalı (doğru) */}
             <Link href="/events">
               <Button className="mt-4 w-full">Back to Events</Button>
             </Link>
@@ -141,17 +164,23 @@ export default function EventDetailPage() {
   }
 
   const isOwner = user?.username === event.owner_username
-  const isFull = event.user_limit && event.participant_count >= event.user_limit
+  
+  // ✅ DÜZELTME (Vercel Build Hatası):
+  // 'isFull' değişkeninin her zaman 'boolean' (true/false) olmasını garanti et.
+  // 'null' (limit yok) ise 'false' (dolu değil) olarak kabul et.
+  const isFull = event.user_limit !== null && event.participant_count >= event.user_limit
 
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
-        <Link href="/events">
-          <Button variant="ghost" className="mb-6">
+        
+        {/* ✅ Geri Dön Butonu (layout'ta değil, burada olmalı - doğru) */}
+        <Button asChild variant="ghost" className="mb-6">
+          <Link href="/events">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Events
-          </Button>
-        </Link>
+          </Link>
+        </Button>
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main Content */}
@@ -165,6 +194,7 @@ export default function EventDetailPage() {
                   </div>
                   {isOwner && (
                     <div className="flex gap-2">
+                      {/* TODO: /edit sayfası oluşturulmadı, bu link şu an 404 verir */}
                       <Link href={`/events/${event.id}/edit`}>
                         <Button size="sm" variant="outline">
                           <Edit className="mr-2 h-4 w-4" />
@@ -212,25 +242,30 @@ export default function EventDetailPage() {
                     <Calendar className="mt-1 h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">Date & Time</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(event.starts_at).toLocaleDateString("en-US", {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(event.starts_at).toLocaleTimeString("en-US", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                        {event.ends_at &&
-                          ` - ${new Date(event.ends_at).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}`}
-                      </p>
+                      {/* Hydration hatası vermemesi için 'isMounted' kontrolü eklendi */}
+                      {isMounted && (
+                        <>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(event.starts_at).toLocaleDateString("en-US", {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(event.starts_at).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                            {event.ends_at &&
+                              ` - ${new Date(event.ends_at).toLocaleTimeString("en-US", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -264,6 +299,7 @@ export default function EventDetailPage() {
                   </div>
                 </div>
 
+                {/* Kullanıcı etkinliğin sahibi DEĞİLSE Katıl/Ayrıl butonlarını göster */}
                 {!isOwner && (
                   <>
                     <Separator />
@@ -279,6 +315,8 @@ export default function EventDetailPage() {
                           {isJoining ? "Leaving..." : "Leave Event"}
                         </Button>
                       ) : (
+                        // ✅ Hata buradaydı: disabled={isJoining || isFull}
+                        // 'isFull' artık her zaman boolean olduğu için hata çözüldü.
                         <Button onClick={handleJoin} disabled={isJoining || isFull} className="flex-1">
                           <UserPlus className="mr-2 h-4 w-4" />
                           {isJoining ? "Joining..." : isFull ? "Event Full" : "Join Event"}
@@ -296,6 +334,7 @@ export default function EventDetailPage() {
                 <CardTitle>Ratings & Reviews</CardTitle>
               </CardHeader>
               <CardContent>
+                {/* TODO: /ratings sayfası oluşturulmadı, bu link şu an 404 verir */}
                 <Link href={`/events/${event.id}/ratings`}>
                   <Button variant="outline" className="w-full bg-transparent">
                     <Star className="mr-2 h-4 w-4" />

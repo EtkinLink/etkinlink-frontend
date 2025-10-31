@@ -9,13 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react"
-import Link from "next/link"
+// ✅ ArrowLeft ve Link importları kaldırıldı (Global layout var)
+import { CheckCircle2, XCircle } from "lucide-react"
 
 interface AttendanceRecord {
   user_id: number
   username: string
-  status: string
+  // ✅ DÜZELTME (İyi pratik): 'status' tipini 'string' yerine daha spesifik hale getirdik
+  status: "ATTENDED" | "NO_SHOW"
 }
 
 export default function AttendancePage() {
@@ -27,8 +28,11 @@ export default function AttendancePage() {
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null)
 
   useEffect(() => {
+    // ✅ 'user' objesi gelene kadar bekleyelim (403 hatasını önler)
+    if (!user || !params.id) return
+    
     fetchAttendance()
-  }, [params.id])
+  }, [params.id, user]) // ✅ 'user' bağımlılıklara eklendi
 
   const fetchAttendance = async () => {
     try {
@@ -36,6 +40,10 @@ export default function AttendancePage() {
       setAttendance(data)
     } catch (error: any) {
       console.error("Failed to fetch attendance:", error)
+      if (error.status === 403) {
+        alert("Only event owners/club admins can manage attendance")
+        router.push(`/events/${params.id}`)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -44,8 +52,16 @@ export default function AttendancePage() {
   const handleUpdateStatus = async (userId: number, status: string) => {
     setUpdatingUserId(userId)
     try {
-      await api.setAttendance(Number(params.id), userId, status)
-      await fetchAttendance()
+      // ✅ DÜZELTME (Vercel Build Hatası):
+      // TypeScript'e bu 'status' string'inin "ATTENDED" veya "NO_SHOW" olduğunu garanti et.
+      await api.setAttendance(Number(params.id), userId, status as "ATTENDED" | "NO_SHOW")
+      
+      // Sayfayı yenilemek yerine state'i anında güncelle (daha hızlı UI)
+      setAttendance(prevList => 
+        prevList.map(p => 
+          p.user_id === userId ? { ...p, status: status as "ATTENDED" | "NO_SHOW" } : p
+        )
+      )
     } catch (error: any) {
       alert(error.message || "Failed to update attendance")
     } finally {
@@ -70,12 +86,8 @@ export default function AttendancePage() {
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
-        <Link href={`/events/${params.id}`}>
-          <Button variant="ghost" className="mb-6">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Event
-          </Button>
-        </Link>
+        
+        {/* ✅ DÜZELTME: Global layout'ta zaten navigasyon olduğu için "Geri Dön" butonu kaldırıldı. */}
 
         <div className="mb-8">
           <h1 className="mb-2 text-3xl font-bold">Attendance Management</h1>
@@ -133,12 +145,12 @@ export default function AttendancePage() {
                             <p className="font-semibold">{record.username}</p>
                             <div className="mt-1">
                               {record.status === "ATTENDED" ? (
-                                <Badge className="bg-green-600">
+                                <Badge className="bg-green-600 hover:bg-green-700">
                                   <CheckCircle2 className="mr-1 h-3 w-3" />
                                   Attended
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="text-red-600">
+                                <Badge variant="outline" className="border-red-600 text-red-600">
                                   <XCircle className="mr-1 h-3 w-3" />
                                   No Show
                                 </Badge>

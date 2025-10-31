@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ArrowLeft, Check, X } from "lucide-react"
-import Link from "next/link"
+import { Check, X } from "lucide-react" // ✅ ArrowLeft ikonu kaldırıldı
 
 interface Application {
   id: number
@@ -22,22 +21,27 @@ interface Application {
 export default function ApplicationsPage() {
   const params = useParams()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user } = useAuth() // Auth kontrolü için
   const [applications, setApplications] = useState<Application[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [processingId, setProcessingId] = useState<number | null>(null)
 
   useEffect(() => {
+    // URL'den ID alınamazsa veya 'user' yoksa (henüz yüklenmemiş olabilir)
+    // 'user' kontrolü, 'getApplications' 403 vermesin diye eklendi.
+    if (!params.id || !user) return
+
     fetchApplications()
-  }, [params.id])
+  }, [params.id, user]) // ✅ 'user' objesi de bağımlılığa eklendi
 
   const fetchApplications = async () => {
+    setIsLoading(true) // Her fetch'te yüklemeyi başlat
     try {
       const data = await api.getApplications(Number(params.id))
       setApplications(data)
     } catch (error: any) {
       if (error.status === 403) {
-        alert("Only event owners can view applications")
+        alert("Only event owners/club admins can view applications")
         router.push(`/events/${params.id}`)
       }
     } finally {
@@ -45,11 +49,14 @@ export default function ApplicationsPage() {
     }
   }
 
-  const handleUpdateStatus = async (applicationId: number, status: string) => {
+  // ✅ DÜZELTME (Vercel Build Hatası):
+  // 'status: string' yerine, API'ın beklediği tipleri tam olarak belirtiyoruz.
+  const handleUpdateStatus = async (applicationId: number, status: "PENDING" | "APPROVED") => {
     setProcessingId(applicationId)
     try {
+      // ✅ Artık 'status' değişkeni %100 uyumlu
       await api.updateApplication(applicationId, status)
-      await fetchApplications()
+      await fetchApplications() // Listeyi yenile
     } catch (error: any) {
       alert(error.message || "Failed to update application")
     } finally {
@@ -74,12 +81,8 @@ export default function ApplicationsPage() {
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
-        <Link href={`/events/${params.id}`}>
-          <Button variant="ghost" className="mb-6">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Event
-          </Button>
-        </Link>
+        
+        {/* ✅ DÜZELTME: Global layout'ta zaten navigasyon olduğu için "Geri Dön" butonu kaldırıldı. */}
 
         <div className="mb-8">
           <h1 className="mb-2 text-3xl font-bold">Event Applications</h1>
@@ -124,6 +127,8 @@ export default function ApplicationsPage() {
                                 <Check className="mr-2 h-4 w-4" />
                                 Approve
                               </Button>
+                              {/* ✅ DÜZELTME (Mantık): Backend'de "REJECTED" durumu yok.
+                                  Bu buton başvuruyu tekrar "PENDING" (Beklemede) durumuna alır. */}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -131,7 +136,7 @@ export default function ApplicationsPage() {
                                 disabled={processingId === application.id}
                               >
                                 <X className="mr-2 h-4 w-4" />
-                                Reject
+                                Set to Pending
                               </Button>
                             </div>
                           </div>
@@ -172,6 +177,16 @@ export default function ApplicationsPage() {
                                 <p className="text-sm text-muted-foreground">{application.why_me}</p>
                               </div>
                             )}
+                            {/* Onaylanmış kullanıcılar için "Set to Pending" butonu */}
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleUpdateStatus(application.id, "PENDING")}
+                                disabled={processingId === application.id}
+                              >
+                                <X className="mr-2 h-4 w-4" />
+                                Set to Pending
+                              </Button>
                           </div>
                         </div>
                       </CardContent>

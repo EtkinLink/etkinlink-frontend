@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Calendar } from "lucide-react"
 
-import { api } from "@/lib/api-client" // lib/api.ts dosyanı kullanıyoruz (loginWithPassword localStorage'a token yazar)
+import { api } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,12 +38,23 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       await api.loginWithPassword(email, password) // ✔ token'ı saklar
-      router.push("/events")
+      
+      // ✅ DÜZELTME: Beyaz ekran (race condition) sorununu çözmek için
+      // router.push() (soft navigation) yerine window.location.href (hard navigation) kullan.
+      // Bu, sayfanın tam olarak yenilenmesini ve AuthProvider'ın
+      // localStorage'daki yeni token'ı güvenle okumasını sağlar.
+      window.location.href = "/events"; 
+      
+      // router.push("/events") // <-- Eski (hatalı) kod
+
     } catch (err: any) {
       setError(err?.message || "Login failed")
-    } finally {
-      setIsLoading(false)
+      // Hata durumunda isLoading'i false'a çek ki kullanıcı tekrar deneyebilsin
+      setIsLoading(false) 
     }
+    
+    // Not: Başarılı yönlendirmede (window.location.href)
+    // setIsLoading(false) demeye gerek yok çünkü sayfa zaten yenileniyor.
   }
 
   return (

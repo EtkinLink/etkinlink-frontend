@@ -10,11 +10,15 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea" // Açıklama için Textarea
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+// ✅ Katılım yöntemi seçimi için
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+
 // İkonlar
-import { ArrowLeft, Plus, University, AlertCircle } from "lucide-react"
+import { ArrowLeft, AlertCircle } from "lucide-react"
 
 // Üniversite tipi
 interface University {
@@ -22,18 +26,27 @@ interface University {
   name: string
 }
 
+// Form verisi için tip
+interface ClubFormData {
+  name: string
+  description: string
+  university_id: string // Select'in value'su string olmalı
+  join_method: "OPEN" | "APPLICATION_ONLY" // ✅ YENİ ALAN
+}
+
 export default function CreateClubPage() {
   const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
 
   const [universities, setUniversities] = useState<University[]>([])
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ClubFormData>({
     name: "",
     description: "",
-    university_id: "", // Select'in value'su string olmalı
+    university_id: "",
+    join_method: "OPEN", // ✅ Varsayılan
   })
   
-  const [isLoading, setIsLoading] = useState(false) // Form gönderme state'i
+  const [isSubmitting, setIsSubmitting] = useState(false) // Form gönderme state'i
   const [error, setError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
 
@@ -57,7 +70,7 @@ export default function CreateClubPage() {
         const unis = await api.getUniversities()
         setUniversities(unis)
         
-        // GÜZEL ÖZELLİK: Kullanıcının kendi üniversitesini formda önceden seç
+        // Kullanıcının kendi üniversitesini formda önceden seç
         if (user && user.university_id) {
           setFormData(prev => ({
             ...prev,
@@ -87,17 +100,22 @@ export default function CreateClubPage() {
   const handleSelectChange = (value: string) => {
     setFormData(prev => ({ ...prev, university_id: value }))
   }
+  
+  // ✅ YENİ: RadioGroup değişimini state'e bağla
+  const handleRadioChange = (value: string) => {
+    setFormData(prev => ({ ...prev, join_method: value as "OPEN" | "APPLICATION_ONLY" }))
+  }
 
   // Formu gönder
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setIsLoading(true)
+    setIsSubmitting(true)
     setError(null)
 
     // Basit validasyon
-    if (!formData.name || !formData.university_id) {
+    if (!formData.name || !formData.university_id || formData.university_id === "none") {
       setError("Club name and university are required.")
-      setIsLoading(false)
+      setIsSubmitting(false)
       return
     }
 
@@ -106,6 +124,7 @@ export default function CreateClubPage() {
         name: formData.name,
         description: formData.description,
         university_id: Number(formData.university_id), // API'a sayı olarak gönder
+        join_method: formData.join_method, // ✅ YENİ ALAN
       }
       
       // API'ı çağır
@@ -121,7 +140,7 @@ export default function CreateClubPage() {
         setError("An unexpected error occurred. Please try again.")
       }
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
   
@@ -141,8 +160,8 @@ export default function CreateClubPage() {
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
         
-        {/* Sayfa Başlığı ve Geri Dön Linki (Artık layout'ta değil, burada) */}
         <div className="mb-6 max-w-2xl mx-auto">
+          {/* Geri dön linki (Kulüpler sayfasına) */}
           <Button asChild variant="ghost">
             <Link href="/clubs">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -187,6 +206,7 @@ export default function CreateClubPage() {
                     <SelectValue placeholder="Select the club's university" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Select a university</SelectItem>
                     {universities.map((uni) => (
                       <SelectItem key={uni.id} value={uni.id.toString()}>
                         {uni.name}
@@ -194,6 +214,30 @@ export default function CreateClubPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              
+              {/* ✅ YENİ: Katılım Yöntemi (RadioGroup) */}
+              <div className="space-y-3 rounded-md border p-4">
+                <Label>Join Method</Label>
+                <RadioGroup
+                  value={formData.join_method}
+                  onValueChange={handleRadioChange}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="OPEN" id="r_open" />
+                    <Label htmlFor="r_open">Open</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="APPLICATION_ONLY" id="r_app" />
+                    <Label htmlFor="r_app">Application Only</Label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  {formData.join_method === 'OPEN'
+                    ? "Anyone can join this club directly."
+                    : "Users must apply and be approved by an admin."}
+                </p>
               </div>
 
               {/* Açıklama */}
@@ -209,12 +253,18 @@ export default function CreateClubPage() {
                 />
               </div>
 
-
+              {/* Hata Mesajı Alanı */}
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
               {/* Gönder Butonu */}
               <div className="flex justify-end">
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Creating..." : "Create Club"}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Creating..." : "Create Club"}
                 </Button>
               </div>
             </form>

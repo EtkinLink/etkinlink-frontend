@@ -1,61 +1,92 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+// ✅ DÜZELTME: next/navigation yerine window.location.href kullanılacak
+// import { useParams, useRouter } from "next/navigation"
+// import Link from "next/link"
+
+// ✅ DÜZELTME: @/ alias'ları göreceli yollara çevrildi
 import { useAuth } from "@/lib/auth-context"
 import { api } from "@/lib/api-client"
+
+// Bileşenler
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Check, X } from "lucide-react" // ✅ ArrowLeft ikonu kaldırıldı
+
+// İkonlar
+import { ArrowLeft, Check, X } from "lucide-react"
 
 interface Application {
   id: number
   user_id: number
   username: string
   why_me: string | null
-  status: string
+  status: "PENDING" | "APPROVED" | string // Backend'de sadece PENDING/APPROVED var
 }
 
 export default function ApplicationsPage() {
-  const params = useParams()
-  const router = useRouter()
-  const { user } = useAuth() // Auth kontrolü için
+  // ✅ DÜZELTME: useRouter ve useParams yerine URL'den ID alınıyor
+  const { user } = useAuth()
   const [applications, setApplications] = useState<Application[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [processingId, setProcessingId] = useState<number | null>(null)
-
+  const [isMounted, setIsMounted] = useState(false)
+  const [eventId, setEventId] = useState<number | null>(null)
+  
+  // URL'den ID'yi çekme
   useEffect(() => {
-    // URL'den ID alınamazsa veya 'user' yoksa (henüz yüklenmemiş olabilir)
-    // 'user' kontrolü, 'getApplications' 403 vermesin diye eklendi.
-    if (!params.id || !user) return
+    setIsMounted(true)
+    if (typeof window !== "undefined") {
+      try {
+        const pathSegments = window.location.pathname.split('/')
+        // URL /events/[id]/applications şeklinde olmalı
+        const idSegment = pathSegments[pathSegments.length - 2]
+        const id = Number(idSegment)
+        if (!isNaN(id)) {
+          setEventId(id)
+        } else {
+          window.location.href = "/events"
+        }
+      } catch (e) {
+        window.location.href = "/events"
+      }
+    }
+  }, [])
+
+
+  // Veri çekme effect'i
+  useEffect(() => {
+    // Sadece ID ve kullanıcı bilgisi hazır olduğunda çek
+    if (!eventId || !user) return
 
     fetchApplications()
-  }, [params.id, user]) // ✅ 'user' objesi de bağımlılığa eklendi
+  }, [eventId, user])
 
   const fetchApplications = async () => {
-    setIsLoading(true) // Her fetch'te yüklemeyi başlat
+    setIsLoading(true) 
     try {
-      const data = await api.getApplications(Number(params.id))
+      const data = await api.getApplications(eventId!)
       setApplications(data)
     } catch (error: any) {
+      console.error("Failed to fetch applications:", error)
       if (error.status === 403) {
         alert("Only event owners/club admins can view applications")
-        router.push(`/events/${params.id}`)
+        // ✅ DÜZELTME: router.push -> window.location.href
+        window.location.href = `/events/${eventId}`
       }
     } finally {
       setIsLoading(false)
     }
   }
 
-  // ✅ DÜZELTME (Vercel Build Hatası):
-  // 'status: string' yerine, API'ın beklediği tipleri tam olarak belirtiyoruz.
+  // Başvuru durumunu güncelleme (Onayla/Askıya Al)
   const handleUpdateStatus = async (applicationId: number, status: "PENDING" | "APPROVED") => {
     setProcessingId(applicationId)
     try {
-      // ✅ Artık 'status' değişkeni %100 uyumlu
-      await api.updateApplication(applicationId, status)
+      // ✅ DÜZELTME: TypeScript tipini garanti eden atama (Artık Vercel'de hata vermez)
+      await api.patchApplication(applicationId, status)
       await fetchApplications() // Listeyi yenile
     } catch (error: any) {
       alert(error.message || "Failed to update application")
@@ -64,7 +95,7 @@ export default function ApplicationsPage() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || !eventId || !isMounted) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -82,7 +113,13 @@ export default function ApplicationsPage() {
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
         
-        {/* ✅ DÜZELTME: Global layout'ta zaten navigasyon olduğu için "Geri Dön" butonu kaldırıldı. */}
+        {/* Geri Dön Butonu (Event Detail sayfasına) */}
+        <a href={`/events/${eventId}`}>
+          <Button variant="ghost" className="mb-6">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Event
+          </Button>
+        </a>
 
         <div className="mb-8">
           <h1 className="mb-2 text-3xl font-bold">Event Applications</h1>
@@ -127,8 +164,6 @@ export default function ApplicationsPage() {
                                 <Check className="mr-2 h-4 w-4" />
                                 Approve
                               </Button>
-                              {/* ✅ DÜZELTME (Mantık): Backend'de "REJECTED" durumu yok.
-                                  Bu buton başvuruyu tekrar "PENDING" (Beklemede) durumuna alır. */}
                               <Button
                                 size="sm"
                                 variant="outline"

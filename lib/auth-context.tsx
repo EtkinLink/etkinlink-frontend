@@ -13,6 +13,7 @@ interface User {
   attendance_rate: number
   university_id: number | null // Profil düzenleme için GEREKLİ
   university_name: string | null // Profilde göstermek için
+    bio: string | null;
 }
 
 interface AuthContextType {

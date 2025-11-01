@@ -8,35 +8,31 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ArrowLeft, Users, Calendar, University, User, Info } from "lucide-react"
+// ✅ YENİ: İkonlar eklendi
+import { ArrowLeft, Users, Calendar, University, User, Info, UserPlus, UserMinus, FileText, Clock, Check, Settings } from "lucide-react"
 
 // --- ARAYÜZLER (TYPES) ---
 
-// Kulübün kendi etkinlikleri (api.getClub'dan gelir)
 interface ClubEvent {
   id: number
   title: string
   starts_at: string
 }
 
-// Kulüp detay verisi (api.getClub'dan gelir)
 interface ClubDetail {
   id: number
   name: string
   description: string | null
-  owner_user_id: number
+  owner_user_id: number // ✅ Admin kontrolü için bu GEREKLİ
   owner_username: string
   university_name: string
   member_count: number
+  join_method: "OPEN" | "APPLICATION_ONLY" // ✅ YENİ ALAN
   events: ClubEvent[]
 }
 
-// Kullanıcının üye olduğu kulüp (api.getMyClubs'dan gelir)
-interface MyClub {
-  id: number
-  name: string
-  role: 'ADMIN' | 'MEMBER'
-}
+// ✅ GÜNCELLEME: Backend'e uygun statü tipi
+type ApplicationStatus = 'MEMBER' | 'ADMIN' | 'PENDING' | null
 
 // Tarih formatlayıcı
 function formatEventDate(iso: string | null) {
@@ -51,24 +47,41 @@ function formatEventDate(iso: string | null) {
 
 export default function ClubDetailPage() {
   const { user } = useAuth()
-  const router = useRouter()
-  const params = useParams() // URL'den parametreleri al
-  const clubId = params.id ? Number(params.id) : null
-
+  // const router = useRouter() // ✅ DÜZELTME
+  // const params = useParams() // ✅ DÜZELTME
+  
+  // ✅ DÜZELTME: ID'yi URL'den almak için state eklendi
+  const [clubId, setClubId] = useState<number | null>(null)
+  
   const [club, setClub] = useState<ClubDetail | null>(null)
-  const [myClubs, setMyClubs] = useState<MyClub[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isJoining, setIsJoining] = useState(false) // Katıl/Ayrıl butonu için
+  const [isActionLoading, setIsActionLoading] = useState(false) // Bütün butonlar için
   const [isMounted, setIsMounted] = useState(false)
+  const [membershipStatus, setMembershipStatus] = useState<ApplicationStatus>(null)
 
-  // 1. Hydration için
+  // 1. Hydration ve URL'den ID'yi çekme
   useEffect(() => {
     setIsMounted(true)
-  }, [])
+    // ✅ DÜZELTME: useParams() yerine window.location kullan
+    try {
+      // (örn: "/clubs/123")
+      const pathSegments = window.location.pathname.split('/')
+      const idStr = pathSegments[pathSegments.length - 1]
+      const id = Number(idStr)
+      if (id && !isNaN(id)) {
+        setClubId(id)
+      } else {
+        console.error("Invalid Club ID from URL")
+        window.location.href = "/clubs" // Hatalı ID ise kulüpler sayfasına at
+      }
+    } catch (e) {
+      console.error(e)
+      window.location.href = "/clubs"
+    }
+  }, []) // Sadece mount anında çalışır
 
-  // 2. Ana veri yükleme effect'i
+  // 2. Ana kulüp verisini çek
   useEffect(() => {
-    // Sadece istemcide ve ID varsa çalış
     if (!isMounted || !clubId) return
 
     const fetchClubData = async () => {
@@ -78,81 +91,175 @@ export default function ClubDetailPage() {
         setClub(clubData)
       } catch (err) {
         console.error("Failed to fetch club data:", err)
-        // Kulüp bulunamazsa (404) veya hata olursa kulüpler sayfasına geri dön
-        router.push("/clubs")
+        window.location.href = "/clubs" // Kulüp bulunamazsa (404)
       } finally {
         setIsLoading(false)
       }
     }
+    fetchClubData()
+    
+  }, [isMounted, clubId])
 
-    const fetchMyMembership = async () => {
-      if (!user) return // Kullanıcı giriş yapmamışsa üyelik durumunu kontrol etme
-      try {
-        const clubs = await api.getMyClubs()
-        setMyClubs(clubs)
-      } catch (err) {
-        console.error("Failed to fetch user's clubs:", err)
-      }
+  // 3. Kullanıcı veya Kulüp değiştiğinde, üyelik/başvuru durumunu çek
+  useEffect(() => {
+    if (!isMounted || !clubId || !user) {
+      setMembershipStatus(null) // Kullanıcı giriş yapmamışsa durumu sıfırla
+      return
     }
 
-    fetchClubData()
-    fetchMyMembership()
+    const fetchMembershipStatus = async () => {
+      try {
+        // ✅ GÜNCELLEME: Backend'e eklediğimiz yeni endpoint'i çağır
+        const statusData = await api.getMyClubApplicationStatus(clubId)
+        setMembershipStatus(statusData.status)
+      } catch (err) {
+        console.error("Failed to fetch membership status:", err)
+      }
+    }
     
-  }, [isMounted, clubId, user, router]) // 'user' değiştiğinde de (login/logout) üyelik durumunu yenile
+    fetchMembershipStatus()
+
+  }, [isMounted, clubId, user])
 
   
   // --- EVENT HANDLERS ---
 
   const handleJoin = async () => {
-    if (!user) {
-      router.push("/auth/login") // Giriş yapmamışsa login'e yönlendir
-      return
-    }
+    if (!user) { window.location.href = "/auth/login"; return } 
     if (!clubId) return
 
-    setIsJoining(true)
+    setIsActionLoading(true)
     try {
       await api.joinClub(clubId)
-      // Durumu anında güncellemek için 'myClubs' listesine manuel ekle
-      setMyClubs([...myClubs, { id: clubId, name: club!.name, role: 'MEMBER' }])
-      // Üye sayısını da anında artır
+      setMembershipStatus('MEMBER') // Durumu anında güncelle
       setClub(prev => prev ? { ...prev, member_count: prev.member_count + 1 } : null)
-    } catch (err) {
-      console.error("Failed to join club:", err)
+    } catch (err: any) {
+      alert(err.message || "Failed to join club")
     } finally {
-      setIsJoining(false)
+      setIsActionLoading(false)
     }
   }
 
   const handleLeave = async () => {
     if (!user || !clubId) return
 
-    setIsJoining(true)
+    setIsActionLoading(true)
     try {
       await api.leaveClub(clubId)
-      // Durumu anında güncellemek için 'myClubs' listesinden çıkar
-      setMyClubs(myClubs.filter(c => c.id !== clubId))
-      // Üye sayısını da anında azalt
+      setMembershipStatus(null) // Durumu anında güncelle
       setClub(prev => prev ? { ...prev, member_count: prev.member_count - 1 } : null)
-    } catch (err) {
-      console.error("Failed to leave club:", err)
+    } catch (err: any) {
+      alert(err.message || "Failed to leave club")
     } finally {
-      setIsJoining(false)
+      setIsActionLoading(false)
     }
   }
 
+  const handleApply = async () => {
+    if (!user) { window.location.href = "/auth/login"; return } 
+    if (!clubId) return
+    
+    setIsActionLoading(true)
+    try {
+      // Not: "why_me" (neden ben?) alanı için bir modal/popup açılabilir
+      const response = await api.createClubApplication(clubId)
+      
+      if (response.status === 'PENDING') {
+        alert("Application submitted! Please wait for approval.")
+        setMembershipStatus("PENDING")
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to submit application")
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
+
+  // --- Katıl/Ayrıl Butonunu Render Et ---
+  const renderJoinButton = () => {
+    // 1. Durum: Giriş yapmamış
+    if (!user) {
+      return (
+        <Button onClick={() => window.location.href = "/auth/login"} className="w-full">
+          <UserPlus className="mr-2 h-4 w-4" />
+          Login to Join or Apply
+        </Button>
+      )
+    }
+    
+    // 2. Durum: Kullanıcı ADMIN (veya Sahip)
+    // ✅ DÜZELTME: Backend'den 'ADMIN' rolü geliyorsa Yönet butonunu göster
+    if (membershipStatus === 'ADMIN') {
+      // TODO: `/clubs/[id]/manage` (Yönetim) sayfası oluşturulmalı
+      return (
+        <Button asChild className="w-full" variant="secondary">
+          <a href={`/clubs/${clubId}/manage`}> 
+            <Settings className="mr-2 h-4 w-4" />
+            Manage Club
+          </a>
+        </Button>
+      )
+    }
+
+    // 3. Durum: Kullanıcı normal MEMBER (Üye)
+    if (membershipStatus === 'MEMBER') {
+      return (
+        <Button 
+          variant="outline" 
+          onClick={handleLeave} 
+          disabled={isActionLoading}
+          className="w-full"
+        >
+          <UserMinus className="mr-2 h-4 w-4" />
+          {isActionLoading ? "Leaving..." : "Leave Club"}
+        </Button>
+      )
+    }
+
+    // 4. Durum: Kulüp Sadece Başvuruyla alıyor
+    if (club?.join_method === 'APPLICATION_ONLY') {
+      // 4a: Başvurusu beklemede
+      if (membershipStatus === 'PENDING') {
+        return (
+          <Button disabled className="w-full" variant="outline">
+            <Clock className="mr-2 h-4 w-4" />
+            Application Pending
+          </Button>
+        )
+      } 
+      // 4b: Henüz başvurmamış
+      else {
+        return (
+          <Button onClick={handleApply} disabled={isActionLoading} className="w-full">
+            <FileText className="mr-2 h-4 w-4" />
+            {isActionLoading ? "Applying..." : "Apply to Join"}
+          </Button>
+        )
+      }
+    }
+
+    // 5. Durum: Kulüp Açık Katılımlı (ve kullanıcı henüz üye değil)
+    if (club?.join_method === 'OPEN') {
+      return (
+        <Button onClick={handleJoin} disabled={isActionLoading} className="w-full">
+          <UserPlus className="mr-2 h-4 w-4" />
+          {isActionLoading ? "Joining..." : "Join Club"}
+        </Button>
+      )
+    }
+    
+    // Diğer tüm durumlar (örn: Kulüp yüklenirken)
+    return null
+  }
+
+
   // --- RENDER ---
-
-  // Kullanıcının bu kulübe üye olup olmadığını kontrol et
-  const isMember = myClubs.some(c => c.id === clubId)
-
-  if (isLoading || !club) {
+  if (!isMounted || isLoading || !club) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Loading club...</p>
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+        <p className="ml-4 text-muted-foreground">Loading club...</p>
       </div>
     )
   }
@@ -160,43 +267,31 @@ export default function ClubDetailPage() {
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
-        {/* Geri Dön Butonu */}
+        
+        {/* ✅ DÜZELTME: Link -> a (Geri butonu) */}
         <Button asChild variant="ghost" className="mb-6">
-          <Link href="/clubs">
+          <a href="/clubs">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Clubs
-          </Link>
+          </a>
         </Button>
 
-        {/* Ana Grid */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
           {/* Sol Sütun: Kulüp Bilgisi */}
           <div className="lg:col-span-1 space-y-6">
             <Card>
-              <CardHeader className="flex flex-row items-start justify-between space-y-0">
-                <div>
-                  <CardTitle className="text-2xl">{club.name}</CardTitle>
-                  <CardDescription>{club.university_name}</CardDescription>
-                </div>
-                {isMember ? (
-                  <Button 
-                    variant="outline" 
-                    onClick={handleLeave} 
-                    disabled={isJoining}
-                  >
-                    {isJoining ? "Leaving..." : "Leave Club"}
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={handleJoin} 
-                    disabled={isJoining}
-                  >
-                    {isJoining ? "Joining..." : "Join Club"}
-                  </Button>
-                )}
+              <CardHeader>
+                <CardTitle className="text-2xl">{club.name}</CardTitle>
+                <CardDescription>{club.university_name}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                
+                {/* ✅ GÜNCELLEME: Dinamik buton render ediliyor */}
+                <div className="pt-2">
+                  {renderJoinButton()}
+                </div>
+
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Users className="h-4 w-4" />
                   <span>{club.member_count} members</span>
@@ -204,6 +299,18 @@ export default function ClubDetailPage() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <User className="h-4 w-4" />
                   <span>Owner: {club.owner_username}</span>
+                </div>
+                
+                {/* ✅ YENİ: Katılım Yöntemi Bilgisi */}
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  {club.join_method === 'OPEN' ? (
+                     <UserPlus className="h-4 w-4 text-green-600" />
+                  ) : (
+                     <FileText className="h-4 w-4 text-blue-600" />
+                  )}
+                  <span className={club.join_method === 'OPEN' ? 'text-green-600' : 'text-blue-600'}>
+                    {club.join_method === 'OPEN' ? "Open to all" : "Application only"}
+                  </span>
                 </div>
                 <div className="flex items-start gap-2 text-muted-foreground">
                   <Info className="h-4 w-4 flex-shrink-0 mt-1" />
@@ -228,7 +335,7 @@ export default function ClubDetailPage() {
                 ) : (
                   <div className="space-y-4">
                     {club.events.map((event) => (
-                      <Link key={event.id} href={`/events/${event.id}`}>
+                      <a key={event.id} href={`/events/${event.id}`}> {/* ✅ DÜZELTME: Link -> a */}
                         <Card className="transition-shadow hover:shadow-md">
                           <CardContent className="pt-6">
                             <div className="flex items-center justify-between">
@@ -240,7 +347,7 @@ export default function ClubDetailPage() {
                             </div>
                           </CardContent>
                         </Card>
-                      </Link>
+                      </a>
                     ))}
                   </div>
                 )}

@@ -1,26 +1,61 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+// ✅ DÜZELTME: next/navigation yerine window.location.href kullanılacak
+// import { useRouter } from "next/navigation" 
+// import Link from "next/link"
+
+// ✅ DÜZELTME: @/ alias'ları göreceli yollara çevrildi
 import { useAuth } from "@/lib/auth-context"
-import { api } from "@/lib/api-client"
+import { api, APIError } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft } from "lucide-react"
-import Link from "next/link"
+import { Alert, AlertDescription } from "@/components/ui/alert" // Hata mesajı için
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group" // Yeni bileşen
+
+// İkonlar
+import { ArrowLeft, AlertCircle } from "lucide-react"
+
+// --- YENİ ARAYÜZLER ---
+interface MyClub {
+  id: number
+  name: string
+  role: 'ADMIN' | 'MEMBER'
+}
+
+interface EventFormData {
+  title: string
+  explanation: string
+  price: string
+  starts_at: string
+  ends_at: string
+  location_name: string
+  user_limit: string
+  type_id: string
+  latitude: string
+  longitude: string
+  // ✅ YENİ: Katılım Yöntemi
+  club_id: string
+  join_method: "DIRECT_JOIN" | "APPLICATION_ONLY"
+}
+// ----------------------
 
 export default function CreateEventPage() {
   const { user } = useAuth()
-  const router = useRouter()
+  // const router = useRouter() // ✅ DÜZELTME: Kaldırıldı
+  
   const [eventTypes, setEventTypes] = useState<any[]>([])
+  const [myClubs, setMyClubs] = useState<MyClub[]>([]) // ✅ YENİ
+  
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
+  const [error, setError] = useState<string | null>(null) // Hata mesajı state'i
+  
+  const [formData, setFormData] = useState<EventFormData>({
     title: "",
     explanation: "",
     price: "0",
@@ -28,74 +63,113 @@ export default function CreateEventPage() {
     ends_at: "",
     location_name: "",
     user_limit: "",
-    type_id: "",
+    type_id: "none", // Varsayılan tip ID
     latitude: "",
     longitude: "",
+    // ✅ YENİ
+    club_id: "none",
+    join_method: "DIRECT_JOIN", 
   })
-
+  
+  // Veri çekme ve Auth kontrolü
   useEffect(() => {
     if (!user) {
-      router.push("/auth/login")
+      // ✅ DÜZELTME: router.push -> window.location.href
+      window.location.href = "/auth/login" 
       return
     }
-    fetchEventTypes()
+    fetchDropdownData()
   }, [user])
 
-  const fetchEventTypes = async () => {
+  const fetchDropdownData = async () => {
     try {
-      const types = await api.getEventTypes()
+      // ✅ 3 API isteğini aynı anda çek
+      const [types, clubsData] = await Promise.all([
+        api.getEventTypes(),
+        api.getMyClubs(),
+      ])
       setEventTypes(types)
+      setMyClubs(clubsData)
     } catch (error) {
-      console.error("Failed to fetch event types:", error)
+      console.error("Failed to fetch dropdown data:", error)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null) // Hata mesajını temizle
 
     try {
+      // Basit validasyon
+      if (!formData.title || !formData.explanation || !formData.starts_at) {
+        throw new Error("Title, description, and start date are required.")
+      }
+
       const payload: any = {
         title: formData.title,
         explanation: formData.explanation,
-        price: Number.parseFloat(formData.price),
+        price: Number.parseFloat(formData.price) || 0,
         starts_at: new Date(formData.starts_at).toISOString(),
         status: "FUTURE",
+        join_method: formData.join_method, // ✅ YENİ ALAN
       }
 
+      // Opsiyonel alanları ekle
       if (formData.ends_at) payload.ends_at = new Date(formData.ends_at).toISOString()
       if (formData.location_name) payload.location_name = formData.location_name
       if (formData.user_limit) payload.user_limit = Number.parseInt(formData.user_limit)
-      if (formData.type_id) payload.type_id = Number.parseInt(formData.type_id)
+      
+      // Select'ten gelen ID'leri kontrol et
+      if (formData.type_id && formData.type_id !== "none") payload.type_id = Number.parseInt(formData.type_id)
+      if (formData.club_id && formData.club_id !== "none") payload.club_id = Number.parseInt(formData.club_id)
+      
       if (formData.latitude) payload.latitude = Number.parseFloat(formData.latitude)
       if (formData.longitude) payload.longitude = Number.parseFloat(formData.longitude)
 
       const response = await api.createEvent(payload)
-      router.push(`/events/${response.id}`)
+      // ✅ DÜZELTME: router.push -> window.location.href
+      window.location.href = `/events/${response.id}`
+      
     } catch (error: any) {
-      alert(error.message || "Failed to create event")
+      if (error instanceof APIError) {
+        setError(error.message)
+      } else {
+        setError(error.message || "Failed to create event")
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: keyof EventFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  // ✅ YENİ: RadioGroup için handler
+  const handleRadioChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, join_method: value as "DIRECT_JOIN" | "APPLICATION_ONLY" }))
   }
 
   if (!user) {
     return null
   }
+  
+  // Sadece Admin olan kulüpleri filtrele
+  const adminClubs = myClubs.filter(c => c.role === 'ADMIN')
+
 
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
-        <Link href="/events">
+        {/* Geri Dön Butonu */}
+        {/* ✅ DÜZELTME: Link -> a */}
+        <a href="/events">
           <Button variant="ghost" className="mb-6">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Events
           </Button>
-        </Link>
+        </a>
 
         <Card className="mx-auto max-w-2xl">
           <CardHeader>
@@ -104,6 +178,8 @@ export default function CreateEventPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              
+              {/* --- Başlık ve Açıklama --- */}
               <div className="space-y-2">
                 <Label htmlFor="title">Event Title *</Label>
                 <Input
@@ -126,15 +202,15 @@ export default function CreateEventPage() {
                   rows={4}
                 />
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
+              
+              {/* --- Tipi, Fiyatı ve Kulübü Yan Yana --- */}
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="type_id">Event Type</Label>
                   <Select value={formData.type_id} onValueChange={(value) => handleChange("type_id", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">None</SelectItem> {/* Varsayılan değer */}
                       {eventTypes.map((type) => (
                         <SelectItem key={type.id} value={type.id.toString()}>
                           {type.code}
@@ -144,7 +220,45 @@ export default function CreateEventPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="club_id">Organizing Club</Label>
+                  <Select value={formData.club_id} onValueChange={(value) => handleChange("club_id", value)}>
+                    <SelectTrigger><SelectValue placeholder="Select club (Admin only)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (Personal)</SelectItem>
+                      {adminClubs.map((club) => (
+                        <SelectItem key={club.id} value={club.id.toString()}>{club.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* ✅ YENİ: Katılım Yöntemi (Tam satır kaplar) */}
+              <div className="space-y-3 rounded-md border p-4">
+                <Label>Join Method</Label>
+                <RadioGroup
+                  value={formData.join_method}
+                  onValueChange={handleRadioChange}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="DIRECT_JOIN" id="r_direct" />
+                    <Label htmlFor="r_direct">Direct Join</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="APPLICATION_ONLY" id="r_app" />
+                    <Label htmlFor="r_app">Application Only</Label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  {formData.join_method === 'DIRECT_JOIN'
+                    ? "Anyone can join until the limit is reached."
+                    : "Users must apply and be approved by you."}
+                </p>
+              </div>
+
+              <div className="space-y-2">
                   <Label htmlFor="price">Price ($) *</Label>
                   <Input
                     id="price"
@@ -156,8 +270,8 @@ export default function CreateEventPage() {
                     required
                   />
                 </div>
-              </div>
 
+              {/* --- Tarih ve Zaman --- */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="starts_at">Start Date & Time *</Label>
@@ -181,17 +295,18 @@ export default function CreateEventPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="location_name">Location</Label>
-                <Input
-                  id="location_name"
-                  value={formData.location_name}
-                  onChange={(e) => handleChange("location_name", e.target.value)}
-                  placeholder="Event location"
-                />
-              </div>
+              {/* --- Lokasyon ve Limit --- */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="location_name">Location</Label>
+                  <Input
+                    id="location_name"
+                    value={formData.location_name}
+                    onChange={(e) => handleChange("location_name", e.target.value)}
+                    placeholder="Event location"
+                  />
+                </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="user_limit">Participant Limit</Label>
                   <Input
@@ -203,41 +318,54 @@ export default function CreateEventPage() {
                     placeholder="Optional"
                   />
                 </div>
+              </div>
 
+              {/* --- GPS (Optional) --- */}
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude</Label>
+                  <Label htmlFor="latitude">Latitude (Optional)</Label>
                   <Input
                     id="latitude"
                     type="number"
                     step="any"
                     value={formData.latitude}
                     onChange={(e) => handleChange("latitude", e.target.value)}
-                    placeholder="Optional"
+                    placeholder="e.g. 41.085"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude</Label>
+                  <Label htmlFor="longitude">Longitude (Optional)</Label>
                   <Input
                     id="longitude"
                     type="number"
                     step="any"
                     value={formData.longitude}
                     onChange={(e) => handleChange("longitude", e.target.value)}
-                    placeholder="Optional"
+                    placeholder="e.g. 29.023"
                   />
                 </div>
               </div>
+              
+              {/* --- Hata Mesajı --- */}
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
+              {/* --- Butonlar --- */}
               <div className="flex gap-4">
                 <Button type="submit" disabled={isLoading} className="flex-1">
                   {isLoading ? "Creating..." : "Create Event"}
                 </Button>
-                <Link href="/events" className="flex-1">
+                {/* ✅ DÜZELTME: Link -> a */}
+                <a href="/events" className="flex-1">
                   <Button type="button" variant="outline" className="w-full bg-transparent">
                     Cancel
                   </Button>
-                </Link>
+                </a>
               </div>
             </form>
           </CardContent>

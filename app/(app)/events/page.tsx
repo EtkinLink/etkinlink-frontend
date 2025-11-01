@@ -108,17 +108,22 @@ export default function EventsPage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          // Başarılı: Gerçek konumu ayarla
           setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
           setLocationReady(true) 
         },
         () => {
+          // ✅ DÜZELTME: Hata durumunda varsayılan (fallback) konumu ayarla (Örn: İstanbul/İTÜ)
+          setUserLocation({ lat: 41.1050, lng: 29.0250 }) 
           setLocationReady(true) 
         }
       )
     } else {
+      // ✅ Konum servisi yoksa, yine de varsayılan konumu kullan
+      setUserLocation({ lat: 41.1050, lng: 29.0250 })
       setLocationReady(true) 
     }
-  }, [isMounted, user]) 
+  }, [isMounted, user])
 
   
   // --- Etkinlikleri al ---

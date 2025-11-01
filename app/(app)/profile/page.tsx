@@ -272,6 +272,11 @@ export default function ProfilePage() {
                       <p className="text-sm text-muted-foreground">Email</p>
                       <p className="font-medium">{user.email}</p>
                     </div>
+                                        {/* ✅ YENİ: Bio Gösterimi */}
+                    <div>
+                      <p className="text-sm text-muted-foreground">About Me</p>
+                      <p className="text-sm">{user.bio || "No bio set yet."}</p>
+                    </div>
                     {user.university_name && (
                       <div>
                         <p className="text-sm text-muted-foreground">University</p>

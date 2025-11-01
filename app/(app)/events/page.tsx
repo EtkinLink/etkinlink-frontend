@@ -25,6 +25,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { EventMap } from "@/components/event-map"
 import {
   Select,
   SelectContent,
@@ -53,6 +54,7 @@ interface Event {
   latitude?: number
   longitude?: number
   distance_km?: number
+  join_method?: "DIRECT_JOIN" | "APPLICATION_ONLY"
 }
 
 function formatEventDate(iso: string) {
@@ -283,6 +285,37 @@ export default function EventsPage() {
             </CardContent>
           </Card>
 
+          {/* Map Overview */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Event Map</CardTitle>
+              <CardDescription>Discover events across Istanbul at a glance</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EventMap
+                className="h-[320px] w-full overflow-hidden rounded-lg"
+                events={events.map((event) => ({
+                  id: event.id,
+                  title: event.title,
+                  latitude:
+                    typeof event.latitude === "number"
+                      ? event.latitude
+                      : event.latitude
+                        ? Number(event.latitude)
+                        : null,
+                  longitude:
+                    typeof event.longitude === "number"
+                      ? event.longitude
+                      : event.longitude
+                        ? Number(event.longitude)
+                        : null,
+                  location_name: event.location_name,
+                  starts_at: event.starts_at,
+                }))}
+              />
+            </CardContent>
+          </Card>
+
           {/* Events */}
           {isLoading ? (
             <div className="text-center py-12">
@@ -301,8 +334,13 @@ export default function EventsPage() {
                 <Link key={ev.id} href={`/events/${ev.id}`}>
                   <Card className="h-full transition hover:shadow-md">
                     <CardHeader>
-                      <div className="flex justify-between mb-2">
-                        <Badge variant="secondary">{ev.event_type}</Badge>
+                      <div className="mb-2 flex items-start justify-between">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary">{ev.event_type}</Badge>
+                          {ev.join_method === "APPLICATION_ONLY" && (
+                            <Badge variant="outline">Application Required</Badge>
+                          )}
+                        </div>
                         {ev.price > 0 && <Badge variant="outline">${ev.price}</Badge>}
                       </div>
                       <CardTitle>{ev.title}</CardTitle>

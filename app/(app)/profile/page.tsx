@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { EventCalendar } from "@/components/event-calendar"
 
 // İkonlar (ArrowLeft kaldırıldı)
 import { Calendar, MapPin, Edit2, Save, X, Award, Users } from "lucide-react"
@@ -67,6 +69,7 @@ export default function ProfilePage() {
     username: "",
     name: "",
     university_id: "",
+    bio: "",
   })
   
   const [universities, setUniversities] = useState<any[]>([])
@@ -88,6 +91,7 @@ export default function ProfilePage() {
         username: user.username,
         name: user.name,
         university_id: user.university_id?.toString() || "none", 
+        bio: user.bio ?? "",
       })
       
       fetchUniversities()
@@ -139,6 +143,7 @@ export default function ProfilePage() {
       const payload: any = {
         username: formData.username,
         name: formData.name,
+        bio: formData.bio.trim() ? formData.bio : null,
       }
       
       if (formData.university_id && formData.university_id !== "none") {
@@ -176,6 +181,12 @@ export default function ProfilePage() {
 
   const upcomingEvents = participatedEvents.filter((e) => new Date(e.starts_at) > new Date())
   const pastEvents = participatedEvents.filter((e) => new Date(e.starts_at) <= new Date())
+  const calendarEvents = participatedEvents.map((event) => ({
+    id: event.id,
+    title: event.title,
+    starts_at: event.starts_at,
+    event_type: event.event_type,
+  }))
 
   return (
     // ✅ Wrapper <div> kaldırıldı, layout hallediyor
@@ -200,7 +211,19 @@ export default function ProfilePage() {
                     </Button>
                   ) : (
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditing(false)
+                          setFormData({
+                            username: user.username,
+                            name: user.name,
+                            university_id: user.university_id?.toString() || "none",
+                            bio: user.bio ?? "",
+                          })
+                        }}
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                       <Button size="sm" onClick={handleSave} disabled={isSaving}>
@@ -239,6 +262,16 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label htmlFor="bio">About Me</Label>
+                      <Textarea
+                        id="bio"
+                        value={formData.bio}
+                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                        rows={4}
+                        placeholder="Share a short bio..."
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="university">University</Label>
                       <Select
                         value={formData.university_id}
@@ -272,7 +305,7 @@ export default function ProfilePage() {
                       <p className="text-sm text-muted-foreground">Email</p>
                       <p className="font-medium">{user.email}</p>
                     </div>
-                                        {/* ✅ YENİ: Bio Gösterimi */}
+                    {/* ✅ YENİ: Bio Gösterimi */}
                     <div>
                       <p className="text-sm text-muted-foreground">About Me</p>
                       <p className="text-sm">{user.bio || "No bio set yet."}</p>
@@ -350,6 +383,16 @@ export default function ProfilePage() {
 
           {/* Sağ Sütun */}
           <div className="space-y-6 lg:col-span-2">
+
+            <Card>
+              <CardHeader>
+                <CardTitle>My Event Calendar</CardTitle>
+                <CardDescription>Keep track of upcoming and past events</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EventCalendar events={calendarEvents} />
+              </CardContent>
+            </Card>
             
             <Card>
               <CardHeader>

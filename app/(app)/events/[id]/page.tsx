@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api } from "@/lib/api-client"
@@ -9,7 +9,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Calendar, MapPin, Users, DollarSign, Edit, Trash2, UserPlus, UserMinus, Star, ArrowLeft } from "lucide-react"
+import {
+  Calendar,
+  MapPin,
+  Users,
+  DollarSign,
+  Edit,
+  Trash2,
+  UserPlus,
+  UserMinus,
+  Star,
+  ArrowLeft,
+  ExternalLink,
+} from "lucide-react"
 import Link from "next/link"
 import {
   AlertDialog,
@@ -22,6 +34,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { EventMap } from "@/components/event-map"
+import { AddToCalendarButton } from "@/components/add-to-calendar-button"
 
 interface EventDetail {
   id: number
@@ -49,6 +64,8 @@ interface EventDetail {
   owner_user_id: number
   type_id: number | null
   club_id: number | null
+  join_method?: "DIRECT_JOIN" | "APPLICATION_ONLY"
+  my_application_status?: "PENDING" | "APPROVED" | string | null
 }
 
 export default function EventDetailPage() {
@@ -61,6 +78,31 @@ export default function EventDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
   const [isMounted, setIsMounted] = useState(false) // Hydration için
+  const [applicationStatus, setApplicationStatus] = useState<string | null>(null)
+  const [applicationReason, setApplicationReason] = useState("")
+  const [isApplying, setIsApplying] = useState(false)
+  const mapsUrl = useMemo(() => {
+    if (!event) return null
+    const lat =
+      typeof event.latitude === "number"
+        ? event.latitude
+        : event.latitude
+          ? Number(event.latitude)
+          : null
+    const lng =
+      typeof event.longitude === "number"
+        ? event.longitude
+        : event.longitude
+          ? Number(event.longitude)
+          : null
+    if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+      return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+    }
+    if (event?.location_name) {
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location_name)}`
+    }
+    return null
+  }, [event])
 
   useEffect(() => {
     setIsMounted(true) // İstemcide yüklendiğini belirt
@@ -70,9 +112,15 @@ export default function EventDetailPage() {
   // user objesi değiştiğinde (login/logout) 'hasJoined' durumunu yeniden hesapla
   useEffect(() => {
     if (user && event && event.participants) {
-      setHasJoined(event.participants.some((p: any) => p.username === user.username))
+      const participant = event.participants.find((p: any) => p.username === user.username)
+      setHasJoined(Boolean(participant && participant.status !== "PENDING"))
+      const derivedStatus =
+        event.my_application_status ??
+        (participant ? participant.status : null)
+      setApplicationStatus(derivedStatus ?? null)
     } else {
       setHasJoined(false)
+      setApplicationStatus(null)
     }
   }, [user, event]) // 'event' veya 'user' yüklendiğinde çalışır
 
@@ -86,6 +134,26 @@ export default function EventDetailPage() {
       console.error("Failed to fetch event:", error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleApply = async () => {
+    if (!user) {
+      router.push("/auth/login")
+      return
+    }
+    if (!event) return
+    setIsApplying(true)
+    try {
+      const reason = applicationReason.trim()
+      await api.createApplication(event.id, reason ? reason : undefined)
+      setApplicationStatus("PENDING")
+      setApplicationReason("")
+      await fetchEvent()
+    } catch (error: any) {
+      alert(error.message || "Failed to submit application")
+    } finally {
+      setIsApplying(false)
     }
   }
 
@@ -169,6 +237,10 @@ export default function EventDetailPage() {
   // 'isFull' değişkeninin her zaman 'boolean' (true/false) olmasını garanti et.
   // 'null' (limit yok) ise 'false' (dolu değil) olarak kabul et.
   const isFull = event.user_limit !== null && event.participant_count >= event.user_limit
+  const requiresApplication = event.join_method === "APPLICATION_ONLY"
+  const normalizedApplicationStatus = applicationStatus ? applicationStatus.toUpperCase() : null
+  const isApplicationPending = normalizedApplicationStatus === "PENDING" && !hasJoined
+  const isApplicationApproved = normalizedApplicationStatus === "APPROVED"
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -191,6 +263,9 @@ export default function EventDetailPage() {
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="secondary">{event.event_type}</Badge>
                     <Badge variant={event.status === "FUTURE" ? "default" : "outline"}>{event.status}</Badge>
+                    {requiresApplication && (
+                      <Badge variant="outline">Application Required</Badge>
+                    )}
                   </div>
                   {isOwner && (
                     <div className="flex gap-2">
@@ -303,28 +378,104 @@ export default function EventDetailPage() {
                 {!isOwner && (
                   <>
                     <Separator />
-                    <div className="flex gap-2">
-                      {hasJoined ? (
-                        <Button
-                          onClick={handleLeave}
-                          disabled={isJoining}
-                          variant="outline"
-                          className="flex-1 bg-transparent"
-                        >
-                          <UserMinus className="mr-2 h-4 w-4" />
-                          {isJoining ? "Leaving..." : "Leave Event"}
-                        </Button>
-                      ) : (
-                        // ✅ Hata buradaydı: disabled={isJoining || isFull}
-                        // 'isFull' artık her zaman boolean olduğu için hata çözüldü.
-                        <Button onClick={handleJoin} disabled={isJoining || isFull} className="flex-1">
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          {isJoining ? "Joining..." : isFull ? "Event Full" : "Join Event"}
-                        </Button>
-                      )}
-                    </div>
+                    {requiresApplication ? (
+                      <div className="space-y-4">
+                        <div className="rounded-md border border-dashed border-muted-foreground/40 p-4 text-sm text-muted-foreground">
+                          This event requires an application before you can join.
+                        </div>
+                        {hasJoined ? (
+                          <Button
+                            onClick={handleLeave}
+                            disabled={isJoining}
+                            variant="outline"
+                            className="flex-1 bg-transparent"
+                          >
+                            <UserMinus className="mr-2 h-4 w-4" />
+                            {isJoining ? "Leaving..." : "Leave Event"}
+                          </Button>
+                        ) : isApplicationPending ? (
+                          <Button disabled variant="outline" className="w-full bg-transparent">
+                            Application Pending
+                          </Button>
+                        ) : isApplicationApproved ? (
+                          <Button onClick={handleJoin} disabled={isJoining || isFull} className="flex-1">
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            {isJoining ? "Joining..." : isFull ? "Event Full" : "Join Event"}
+                          </Button>
+                        ) : (
+                          <div className="space-y-2">
+                            <Textarea
+                              placeholder="Tell the organizer why you'd like to join (optional)"
+                              value={applicationReason}
+                              onChange={(e) => setApplicationReason(e.target.value)}
+                              disabled={isApplying}
+                            />
+                            <Button
+                              onClick={handleApply}
+                              disabled={isApplying || isFull}
+                              className="w-full"
+                            >
+                              {isApplying ? "Submitting..." : isFull ? "Event Full" : "Submit Application"}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        {hasJoined ? (
+                          <Button
+                            onClick={handleLeave}
+                            disabled={isJoining}
+                            variant="outline"
+                            className="flex-1 bg-transparent"
+                          >
+                            <UserMinus className="mr-2 h-4 w-4" />
+                            {isJoining ? "Leaving..." : "Leave Event"}
+                          </Button>
+                        ) : (
+                          <Button onClick={handleJoin} disabled={isJoining || isFull} className="flex-1">
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            {isJoining ? "Joining..." : isFull ? "Event Full" : "Join Event"}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Map Section */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Location Map</CardTitle>
+                <CardDescription>Visualize where this event takes place</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EventMap
+                  height={320}
+                  className="w-full overflow-hidden rounded-lg"
+                  events={[
+                    {
+                      id: event.id,
+                      title: event.title,
+                      latitude:
+                        typeof event.latitude === "number"
+                          ? event.latitude
+                          : event.latitude
+                            ? Number(event.latitude)
+                            : null,
+                      longitude:
+                        typeof event.longitude === "number"
+                          ? event.longitude
+                          : event.longitude
+                            ? Number(event.longitude)
+                            : null,
+                      location_name: event.location_name,
+                      starts_at: event.starts_at,
+                    },
+                  ]}
+                />
               </CardContent>
             </Card>
 
@@ -373,6 +524,34 @@ export default function EventDetailPage() {
                     <p className="text-sm text-muted-foreground">+{event.participants.length - 5} more participants</p>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Calendar & Maps */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Calendar & Maps</CardTitle>
+                <CardDescription>Save this event or explore the location</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <AddToCalendarButton
+                  event={{
+                    id: event.id,
+                    title: event.title,
+                    starts_at: event.starts_at,
+                    ends_at: event.ends_at,
+                    location_name: event.location_name,
+                    explanation: event.explanation,
+                  }}
+                />
+                {mapsUrl && (
+                  <Button asChild variant="outline" className="w-full bg-transparent">
+                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Open in Maps
+                    </a>
+                  </Button>
+                )}
               </CardContent>
             </Card>
 

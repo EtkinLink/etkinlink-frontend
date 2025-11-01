@@ -24,12 +24,31 @@ interface Application {
   username: string
   why_me: string | null
   status: "PENDING" | "APPROVED" | string // Backend'de sadece PENDING/APPROVED var
+  source?: "APPLICATION" | "PARTICIPANT"
 }
+
+interface Participant {
+  id: number
+  username: string
+  status: string | null
+}
+
+const normalizeStatus = (status: string | null | undefined) => {
+  const value = (status ?? "").toString().toUpperCase()
+  if (value === "ACCEPTED") return "APPROVED"
+  if (value === "JOINED") return "APPROVED"
+  if (value === "WAITING" || value === "REQUESTED") return "PENDING"
+  return value || "PENDING"
+}
+
+const isApprovedStatus = (status: string) => normalizeStatus(status) === "APPROVED"
+const isPendingStatus = (status: string) => normalizeStatus(status) === "PENDING"
 
 export default function ApplicationsPage() {
   // ✅ DÜZELTME: useRouter ve useParams yerine URL'den ID alınıyor
   const { user } = useAuth()
   const [applications, setApplications] = useState<Application[]>([])
+  const [participants, setParticipants] = useState<Participant[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [processingId, setProcessingId] = useState<number | null>(null)
   const [isMounted, setIsMounted] = useState(false)
@@ -67,8 +86,24 @@ export default function ApplicationsPage() {
   const fetchApplications = async () => {
     setIsLoading(true) 
     try {
-      const data = await api.getApplications(eventId!)
-      setApplications(data)
+      const [applicationsData, eventData] = await Promise.all([
+        api.getApplications(eventId!),
+        api.getEvent(eventId!)
+      ])
+      setApplications(
+        applicationsData.map((app: Application) => ({
+          ...app,
+          status: normalizeStatus(app.status) as Application["status"],
+          source: "APPLICATION",
+        }))
+      )
+      setParticipants(
+        (eventData?.participants || []).map((participant: any) => ({
+          id: participant.id,
+          username: participant.username,
+          status: participant.status ?? null,
+        }))
+      )
     } catch (error: any) {
       console.error("Failed to fetch applications:", error)
       if (error.status === 403) {
@@ -87,7 +122,7 @@ export default function ApplicationsPage() {
     try {
       // ✅ DÜZELTME: TypeScript tipini garanti eden atama (Artık Vercel'de hata vermez)
       await api.patchApplication(applicationId, status)
-      await fetchApplications() // Listeyi yenile
+      await fetchApplications() // Listeyi yenile (katılımcı listesi de güncellensin)
     } catch (error: any) {
       alert(error.message || "Failed to update application")
     } finally {
@@ -106,8 +141,32 @@ export default function ApplicationsPage() {
     )
   }
 
-  const pendingApplications = applications.filter((a) => a.status === "PENDING")
-  const approvedApplications = applications.filter((a) => a.status === "APPROVED")
+  const pendingApplications = applications.filter((a) => isPendingStatus(a.status))
+  const participantApprovals = participants
+    .map((participant) => ({
+      id: Number(participant.id ?? 0),
+      user_id: Number(participant.id ?? 0),
+      username: participant.username,
+      why_me: null,
+      status: normalizeStatus(participant.status) as Application["status"],
+      source: "PARTICIPANT" as const,
+    }))
+    .filter((participant) => isApprovedStatus(participant.status))
+
+  const combinedApprovedMap = new Map<string, Application>()
+  const buildKey = (entry: Application) =>
+    entry.user_id ? `id:${entry.user_id}` : `user:${entry.username}`
+  const addToMap = (entry: Application) => {
+    const key = buildKey(entry)
+    if (!combinedApprovedMap.has(key)) {
+      combinedApprovedMap.set(key, entry)
+    }
+  }
+
+  applications.filter((a) => isApprovedStatus(a.status)).forEach(addToMap)
+  participantApprovals.forEach(addToMap)
+
+  const approvedApplications = Array.from(combinedApprovedMap.values())
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -195,25 +254,36 @@ export default function ApplicationsPage() {
                 <p className="text-center text-muted-foreground">No approved applications</p>
               ) : (
                 <div className="space-y-4">
-                  {approvedApplications.map((application) => (
-                    <Card key={application.id}>
+                  {approvedApplications.map((application) => {
+                    const isParticipantEntry = application.source === "PARTICIPANT"
+                    const entryKey = `${application.source ?? "application"}-${application.user_id ?? application.id}`
+                    return (
+                    <Card key={entryKey}>
                       <CardContent className="pt-6">
                         <div className="flex items-start gap-4">
                           <Avatar>
                             <AvatarFallback>{application.username[0].toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
-                            <div className="mb-2 flex items-center justify-between">
+                            <div className="mb-2 flex items-center justify-between gap-2">
                               <p className="font-semibold">{application.username}</p>
-                              <Badge>{application.status}</Badge>
+                              <div className="flex gap-2">
+                                <Badge>{application.status}</Badge>
+                                {isParticipantEntry && <Badge variant="outline">Participant</Badge>}
+                              </div>
                             </div>
                             {application.why_me && (
                               <div className="rounded-lg bg-muted p-3">
                                 <p className="text-sm text-muted-foreground">{application.why_me}</p>
                               </div>
                             )}
-                            {/* Onaylanmış kullanıcılar için "Set to Pending" butonu */}
-                            <Button
+                            {!application.why_me && isParticipantEntry && (
+                              <p className="text-sm text-muted-foreground">
+                                Already part of the event. Manage attendance from the event detail page.
+                              </p>
+                            )}
+                            {!isParticipantEntry && (
+                              <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleUpdateStatus(application.id, "PENDING")}
@@ -222,11 +292,12 @@ export default function ApplicationsPage() {
                                 <X className="mr-2 h-4 w-4" />
                                 Set to Pending
                               </Button>
+                            )}
                           </div>
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                  )})}
                 </div>
               )}
             </CardContent>

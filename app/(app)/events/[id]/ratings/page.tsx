@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api } from "@/lib/api-client"
@@ -34,11 +34,7 @@ export default function RatingsPage() {
   const [averageRating, setAverageRating] = useState<number>(0)
   const [ratingCount, setRatingCount] = useState<number>(0)
 
-  useEffect(() => {
-    fetchRatings()
-  }, [params.id])
-
-  const fetchRatings = async () => {
+  const fetchRatings = useCallback(async () => {
     try {
       const data = await api.getRatings(Number(params.id))
       const list: Rating[] = Array.isArray(data)
@@ -74,7 +70,11 @@ export default function RatingsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [params.id, user])
+
+  useEffect(() => {
+    fetchRatings()
+  }, [params.id, fetchRatings])
 
   const handleSubmitRating = async () => {
     if (userRating === 0) {

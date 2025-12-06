@@ -23,7 +23,7 @@ interface ClubDetail {
   id: number
   name: string
   description: string | null
-  owner_user_id: number // ✅ Admin kontrolü için bu GEREKLİ
+  owner_user_id: number | null // Backend şu an owner id göndermediği için null gelebilir
   owner_username: string
   university_name: string
   member_count: number
@@ -273,10 +273,10 @@ export default function ClubDetailPage() {
         
         {/* ✅ DÜZELTME: Link -> a (Geri butonu) */}
         <Button asChild variant="ghost" className="mb-6">
-          <a href="/clubs">
+          <Link href="/clubs">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Clubs
-          </a>
+          </Link>
         </Button>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api } from "@/lib/api-client"
@@ -107,10 +107,21 @@ export default function EventDetailPage() {
     return null
   }, [event])
 
+  const fetchEvent = useCallback(async () => {
+    try {
+      const data = await api.getEvent(Number(params.id))
+      setEvent(data)
+    } catch (error) {
+      console.error("Failed to fetch event:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [params.id])
+
   useEffect(() => {
     setIsMounted(true)
     fetchEvent()
-  }, [params.id])
+  }, [params.id, fetchEvent])
 
   useEffect(() => {
     if (user && event && event.participants) {
@@ -125,17 +136,6 @@ export default function EventDetailPage() {
       setApplicationStatus(null)
     }
   }, [user, event])
-
-  const fetchEvent = async () => {
-    try {
-      const data = await api.getEvent(Number(params.id))
-      setEvent(data)
-    } catch (error) {
-      console.error("Failed to fetch event:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleApply = async () => {
     if (!user) {

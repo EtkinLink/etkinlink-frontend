@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api, APIError } from "@/lib/api-client"
@@ -73,11 +73,11 @@ export default function ManageClubPage() {
 
     fetchManagementData()
     
-  }, [isMounted, clubId, user, router])
+  }, [isMounted, clubId, user, router, fetchManagementData])
 
 
   // Veri çekme fonksiyonu
-  const fetchManagementData = async () => {
+  const fetchManagementData = useCallback(async () => {
     if (!clubId) return
     setIsLoading(true)
     setError(null)
@@ -107,7 +107,7 @@ export default function ManageClubPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [clubId, router])
 
 
   // --- EVENT HANDLERS (Başvuru Yönetimi) ---

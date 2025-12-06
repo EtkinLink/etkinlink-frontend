@@ -2,9 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-// ✅ DÜZELTME: next/navigation yerine window.location.href kullanılacak
-// import { useRouter } from "next/navigation" 
-// import Link from "next/link"
+import Link from "next/link"
 
 // ✅ DÜZELTME: @/ alias'ları göreceli yollara çevrildi
 import { useAuth } from "@/lib/auth-context"
@@ -160,13 +158,12 @@ export default function CreateEventPage() {
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
         {/* Geri Dön Butonu */}
-        {/* ✅ DÜZELTME: Link -> a */}
-        <a href="/events">
-          <Button variant="ghost" className="mb-6">
+        <Button asChild variant="ghost" className="mb-6">
+          <Link href="/events">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Events
-          </Button>
-        </a>
+          </Link>
+        </Button>
 
         <Card className="mx-auto max-w-2xl">
           <CardHeader>
@@ -357,12 +354,9 @@ export default function CreateEventPage() {
                 <Button type="submit" disabled={isLoading} className="flex-1">
                   {isLoading ? "Creating..." : "Create Event"}
                 </Button>
-                {/* ✅ DÜZELTME: Link -> a */}
-                <a href="/events" className="flex-1">
-                  <Button type="button" variant="outline" className="w-full bg-transparent">
-                    Cancel
-                  </Button>
-                </a>
+                <Button asChild type="button" variant="outline" className="flex-1 bg-transparent">
+                  <Link href="/events">Cancel</Link>
+                </Button>
               </div>
             </form>
           </CardContent>

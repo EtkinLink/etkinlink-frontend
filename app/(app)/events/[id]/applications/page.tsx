@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 // ✅ DÜZELTME: next/navigation yerine window.location.href kullanılacak
 // import { useParams, useRouter } from "next/navigation"
 // import Link from "next/link"
@@ -76,15 +76,7 @@ export default function ApplicationsPage() {
   }, [])
 
 
-  // Veri çekme effect'i
-  useEffect(() => {
-    // Sadece ID ve kullanıcı bilgisi hazır olduğunda çek
-    if (!eventId || !user) return
-
-    fetchApplications()
-  }, [eventId, user])
-
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     setIsLoading(true) 
     try {
       const [applicationsData, eventData] = await Promise.all([
@@ -115,7 +107,15 @@ export default function ApplicationsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [eventId])
+
+  // Veri çekme effect'i
+  useEffect(() => {
+    // Sadece ID ve kullanıcı bilgisi hazır olduğunda çek
+    if (!eventId || !user) return
+
+    fetchApplications()
+  }, [eventId, user, fetchApplications])
 
   // Başvuru durumunu güncelleme (Onayla/Reddet)
   const handleUpdateStatus = async (applicationId: number, status: "APPROVED" | "REJECTED") => {

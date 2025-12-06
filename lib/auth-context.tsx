@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode }from "react"
+import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react"
 // ✅ api-client'ten doğru getToken/setToken fonksiyonlarını alıyoruz
 import { api, getToken, setToken, setUnauthorizedHandler } from "./api-client"
 
@@ -32,6 +32,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  const logout = useCallback(() => {
+    setToken(null) // ✅ api-client'teki setToken(null) çağrılır (localStorage'ı temizler)
+    setTokenState(null)
+    setUser(null)
+  }, [])
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      // ✅ GÜNCELLEME: Artık tam User objesini (id, university_id vb. ile) alıyor
+      const profile: User = await api.getProfile()
+      setUser(profile)
+    } catch (error) {
+      console.error("Failed to fetch profile:", error)
+      logout() // Profil alınamazsa (örn. token geçersizse) logout yap
+    } finally {
+      setIsLoading(false)
+    }
+  }, [logout])
+
   useEffect(() => {
     // ✅ DÜZELTME: "auth_token" yerine api-client'teki "access_token"i kullanan fonksiyon
     const storedToken = getToken()
@@ -52,26 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       setUnauthorizedHandler(null)
     }
-  }, []) // Bu useEffect sadece bir kez (mount) anında çalışır
-
-  const fetchProfile = async () => {
-    try {
-      // ✅ GÜNCELLEME: Artık tam User objesini (id, university_id vb. ile) alıyor
-      const profile: User = await api.getProfile()
-      setUser(profile)
-    } catch (error) {
-      console.error("Failed to fetch profile:", error)
-      logout() // Profil alınamazsa (örn. token geçersizse) logout yap
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const logout = () => {
-    setToken(null) // ✅ api-client'teki setToken(null) çağrılır (localStorage'ı temizler)
-    setTokenState(null)
-    setUser(null)
-  }
+  }, [fetchProfile, logout]) // Bu useEffect sadece bir kez (mount) anında çalışır
 
   // ✅ YENİ: Profil sayfasının çağırması için
   const refreshUser = async () => {

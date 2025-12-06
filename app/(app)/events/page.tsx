@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { api } from "@/lib/api-client"
@@ -125,14 +125,6 @@ export default function EventsPage() {
     }
   }, [isMounted, user])
 
-  // --- Fetch Events ---
-  useEffect(() => {
-    if (!isMounted || !user || !locationReady) {
-      return
-    }
-    fetchEvents()
-  }, [isMounted, user, locationReady, page, selectedType, viewMode]) // Dependencies güncellendi
-
   const fetchEventTypes = async () => {
     try {
       const types = await api.getEventTypes()
@@ -142,7 +134,7 @@ export default function EventsPage() {
     }
   }
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setIsLoading(true)
     try {
       const params: any = { page, per_page: 12, sort: "starts_at", order: "asc" }
@@ -169,7 +161,15 @@ export default function EventsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [page, viewMode, userLocation, selectedType, searchQuery, dateFrom, dateTo])
+
+  // --- Fetch Events ---
+  useEffect(() => {
+    if (!isMounted || !user || !locationReady) {
+      return
+    }
+    fetchEvents()
+  }, [isMounted, user, locationReady, page, selectedType, viewMode, fetchEvents]) // Dependencies güncellendi
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

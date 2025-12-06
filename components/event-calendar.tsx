@@ -27,7 +27,7 @@ type CalendarEvent = {
 }
 
 export function EventCalendar({ events }: { events: CalendarEvent[] }) {
-  const [selectedDay, setSelectedDay] = useState<Date | undefined>(undefined)
+  const [userSelectedDay, setUserSelectedDay] = useState<Date | undefined>(undefined)
 
   useEffect(() => {
     loadCalendarStyles()
@@ -50,11 +50,12 @@ export function EventCalendar({ events }: { events: CalendarEvent[] }) {
 
   const eventDates = useMemo(() => Array.from(eventsByDate.keys()).map((key) => new Date(key)), [eventsByDate])
 
-  useEffect(() => {
-    if (!selectedDay && eventDates.length > 0) {
-      setSelectedDay(eventDates[0])
+  const selectedDay = useMemo(() => {
+    if (userSelectedDay && eventDates.some((d) => d.toDateString() === userSelectedDay.toDateString())) {
+      return userSelectedDay
     }
-  }, [eventDates, selectedDay])
+    return eventDates[0]
+  }, [eventDates, userSelectedDay])
 
   const selectedKey = selectedDay ? selectedDay.toDateString() : null
   const dayEvents = selectedKey ? eventsByDate.get(selectedKey) ?? [] : []
@@ -64,7 +65,7 @@ export function EventCalendar({ events }: { events: CalendarEvent[] }) {
       <DayPicker
         mode="single"
         selected={selectedDay}
-        onSelect={setSelectedDay}
+        onSelect={setUserSelectedDay}
         modifiers={{ eventDay: eventDates }}
         modifiersStyles={{
           eventDay: {

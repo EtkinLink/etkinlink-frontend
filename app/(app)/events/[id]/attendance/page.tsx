@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api } from "@/lib/api-client"
@@ -27,14 +27,7 @@ export default function AttendancePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null)
 
-  useEffect(() => {
-    // ✅ 'user' objesi gelene kadar bekleyelim (403 hatasını önler)
-    if (!user || !params.id) return
-    
-    fetchAttendance()
-  }, [params.id, user]) // ✅ 'user' bağımlılıklara eklendi
-
-  const fetchAttendance = async () => {
+  const fetchAttendance = useCallback(async () => {
     try {
       const data = await api.getAttendance(Number(params.id))
       setAttendance(data)
@@ -47,7 +40,14 @@ export default function AttendancePage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [params.id, router])
+
+  useEffect(() => {
+    // ✅ 'user' objesi gelene kadar bekleyelim (403 hatasını önler)
+    if (!user || !params.id) return
+    
+    fetchAttendance()
+  }, [params.id, user, fetchAttendance]) // ✅ 'user' bağımlılıklara eklendi
 
   const handleUpdateStatus = async (userId: number, status: string) => {
     setUpdatingUserId(userId)

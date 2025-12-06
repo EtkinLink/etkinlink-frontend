@@ -403,7 +403,7 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent>
                 {myClubs.length === 0 ? (
-                  <p className="text-center text-muted-foreground">You haven't joined any clubs</p>
+                  <p className="text-center text-muted-foreground">You haven&apos;t joined any clubs</p>
                 ) : (
                   <div className="space-y-4">
                     {myClubs.map((club) => (
@@ -434,7 +434,7 @@ export default function ProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Upcoming Events ({upcomingEvents.length})</CardTitle>
-                <CardDescription>Events you're participating in</CardDescription>
+                <CardDescription>Events you&apos;re participating in</CardDescription>
               </CardHeader>
               <CardContent>
                 {upcomingEvents.length === 0 ? (
@@ -486,7 +486,7 @@ export default function ProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Past Events ({pastEvents.length})</CardTitle>
-                <CardDescription>Events you've attended</CardDescription>
+                <CardDescription>Events you&apos;ve attended</CardDescription>
               </CardHeader>
               <CardContent>
                 {pastEvents.length === 0 ? (

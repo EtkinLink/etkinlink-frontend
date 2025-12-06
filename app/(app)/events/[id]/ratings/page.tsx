@@ -14,8 +14,8 @@ import Link from "next/link"
 
 interface Rating {
   id: number
-  event_id: number
-  user_id: number
+  event_id?: number
+  user_id?: number
   username: string | null
   rating: number
   comment: string | null
@@ -31,6 +31,8 @@ export default function RatingsPage() {
   const [userRating, setUserRating] = useState(0)
   const [userComment, setUserComment] = useState("")
   const [hasRated, setHasRated] = useState(false)
+  const [averageRating, setAverageRating] = useState<number>(0)
+  const [ratingCount, setRatingCount] = useState<number>(0)
 
   useEffect(() => {
     fetchRatings()
@@ -39,10 +41,28 @@ export default function RatingsPage() {
   const fetchRatings = async () => {
     try {
       const data = await api.getRatings(Number(params.id))
-      setRatings(data)
+      const list: Rating[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as any)?.ratings)
+          ? (data as any).ratings
+          : []
+
+      const avg = (data as any)?.average_rating
+      const count = (data as any)?.rating_count
+
+      setRatings(list)
+      setAverageRating(
+        typeof avg === "number"
+          ? avg
+          : list.length > 0
+            ? list.reduce((sum, r) => sum + r.rating, 0) / list.length
+            : 0
+      )
+      setRatingCount(typeof count === "number" ? count : list.length)
+
       // Check if current user has rated
       if (user) {
-        const existingRating = data.find((r: Rating) => r.username === user.username)
+        const existingRating = list.find((r: Rating) => r.username === user.username)
         if (existingRating) {
           setHasRated(true)
           setUserRating(existingRating.rating)
@@ -83,8 +103,6 @@ export default function RatingsPage() {
       </div>
     )
   }
-
-  const averageRating = ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length : 0
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -162,7 +180,7 @@ export default function RatingsPage() {
                     <p className="text-4xl font-bold">{averageRating.toFixed(1)}</p>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Based on {ratings.length} rating{ratings.length !== 1 ? "s" : ""}
+                    Based on {ratingCount} rating{ratingCount !== 1 ? "s" : ""}
                   </p>
                 </div>
               </CardContent>

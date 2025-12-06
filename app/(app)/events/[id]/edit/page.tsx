@@ -113,7 +113,7 @@ export default function EditEventPage() {
         const isOwner = user.id === eventData.owner_user_id
         // Kullanıcı, etkinliğin kulübünde admin mi?
         const isAdmin = clubsData.some(
-          (c: MyClub) => c.id === eventData.club_id && c.role === 'ADMIN'
+          (c: MyClub) => c.id === (eventData.owner_organization_id ?? eventData.club_id) && c.role === 'ADMIN'
         )
 
         // Sahibi veya admin değilse, düzenlemesine izin verme
@@ -132,7 +132,7 @@ export default function EditEventPage() {
           location_name: eventData.location_name || "",
           user_limit: eventData.user_limit?.toString() || "",
           type_id: eventData.type_id?.toString() || "none",
-          club_id: eventData.club_id?.toString() || "none",
+          club_id: (eventData.owner_organization_id ?? eventData.club_id)?.toString() || "none",
         })
 
         // Dropdown'ları doldur
@@ -180,16 +180,11 @@ export default function EditEventPage() {
       const payload = {
         title: formData.title,
         explanation: formData.explanation,
-        // Fiyatı sayıya çevir
         price: Number(formData.price) || 0,
-        // Lokal tarihi ISO (UTC) string'e çevir
         starts_at: new Date(formData.starts_at).toISOString(),
         location_name: formData.location_name || null,
-        // Limiti sayıya veya null'a çevir
         user_limit: formData.user_limit ? Number(formData.user_limit) : null,
-        // ID'leri sayıya veya null'a çevir
         type_id: formData.type_id !== "none" ? Number(formData.type_id) : null,
-        club_id: formData.club_id !== "none" ? Number(formData.club_id) : null,
       }
       
       // ✅ API'ı ÇAĞIR: Create yerine UPDATE kullan

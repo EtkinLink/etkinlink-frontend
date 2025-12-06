@@ -23,7 +23,7 @@ interface Application {
   user_id: number
   username: string
   why_me: string | null
-  status: "PENDING" | "APPROVED" | string // Backend'de sadece PENDING/APPROVED var
+  status: "PENDING" | "APPROVED" | "REJECTED" | string
   source?: "APPLICATION" | "PARTICIPANT"
 }
 
@@ -43,6 +43,7 @@ const normalizeStatus = (status: string | null | undefined) => {
 
 const isApprovedStatus = (status: string) => normalizeStatus(status) === "APPROVED"
 const isPendingStatus = (status: string) => normalizeStatus(status) === "PENDING"
+const isRejectedStatus = (status: string) => normalizeStatus(status) === "REJECTED"
 
 export default function ApplicationsPage() {
   // ✅ DÜZELTME: useRouter ve useParams yerine URL'den ID alınıyor
@@ -116,8 +117,8 @@ export default function ApplicationsPage() {
     }
   }
 
-  // Başvuru durumunu güncelleme (Onayla/Askıya Al)
-  const handleUpdateStatus = async (applicationId: number, status: "PENDING" | "APPROVED") => {
+  // Başvuru durumunu güncelleme (Onayla/Reddet)
+  const handleUpdateStatus = async (applicationId: number, status: "APPROVED" | "REJECTED") => {
     setProcessingId(applicationId)
     try {
       // ✅ DÜZELTME: TypeScript tipini garanti eden atama (Artık Vercel'de hata vermez)
@@ -166,7 +167,9 @@ export default function ApplicationsPage() {
   applications.filter((a) => isApprovedStatus(a.status)).forEach(addToMap)
   participantApprovals.forEach(addToMap)
 
-  const approvedApplications = Array.from(combinedApprovedMap.values())
+  const approvedApplications = Array.from(combinedApprovedMap.values()).filter(
+    (entry) => !isRejectedStatus(entry.status)
+  )
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -226,11 +229,11 @@ export default function ApplicationsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleUpdateStatus(application.id, "PENDING")}
+                                onClick={() => handleUpdateStatus(application.id, "REJECTED")}
                                 disabled={processingId === application.id}
                               >
                                 <X className="mr-2 h-4 w-4" />
-                                Set to Pending
+                                Reject
                               </Button>
                             </div>
                           </div>
@@ -286,11 +289,11 @@ export default function ApplicationsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleUpdateStatus(application.id, "PENDING")}
+                                onClick={() => handleUpdateStatus(application.id, "REJECTED")}
                                 disabled={processingId === application.id}
                               >
                                 <X className="mr-2 h-4 w-4" />
-                                Set to Pending
+                                Reject
                               </Button>
                             )}
                           </div>

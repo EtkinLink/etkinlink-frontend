@@ -162,14 +162,17 @@ export default function ClubDetailPage() {
     setIsActionLoading(true)
     try {
       // Not: "why_me" (neden ben?) alanı için bir modal/popup açılabilir
-      const response = await api.createClubApplication(clubId)
-      
-      if (response.status === 'PENDING') {
-        alert("Application submitted! Please wait for approval.")
-        setMembershipStatus("PENDING")
-      }
+      await api.createClubApplication(clubId)
+      alert("Application submitted! Please wait for approval.")
+      setMembershipStatus("PENDING")
     } catch (err: any) {
-      alert(err.message || "Failed to submit application")
+      // Eğer backend "Already applied" ile 409 dönerse durumu beklemede göster
+      if (err?.status === 409) {
+        setMembershipStatus("PENDING")
+        alert("You already have a pending application.")
+      } else {
+        alert(err.message || "Failed to submit application")
+      }
     } finally {
       setIsActionLoading(false)
     }

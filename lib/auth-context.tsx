@@ -6,14 +6,14 @@ import { api, getToken, setToken, setUnauthorizedHandler } from "./api-client"
 
 // ✅ GÜNCELLEME: User arayüzü, app.py'deki GET /users/me ile eşleşiyor
 interface User {
-  id: number // Profil sayfasının etkinlikleri çekmesi için GEREKLİ
+  id: number | null // JWT payload'dan geliyor
   username: string
   name: string
   email: string
   attendance_rate: number
-  university_id: number | null // Profil düzenleme için GEREKLİ
-  university_name: string | null // Profilde göstermek için
-    bio: string | null;
+  university_id?: number | null
+  university_name?: string | null
+  bio?: string | null
 }
 
 interface AuthContextType {

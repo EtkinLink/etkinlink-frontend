@@ -113,8 +113,8 @@ export default function CreateClubPage() {
     setError(null)
 
     // Basit validasyon
-    if (!formData.name || !formData.university_id || formData.university_id === "none") {
-      setError("Club name and university are required.")
+    if (!formData.name) {
+      setError("Club name is required.")
       setIsSubmitting(false)
       return
     }
@@ -123,15 +123,12 @@ export default function CreateClubPage() {
       const payload = {
         name: formData.name,
         description: formData.description,
-        university_id: Number(formData.university_id), // API'a sayı olarak gönder
-        join_method: formData.join_method, // ✅ YENİ ALAN
       }
       
-      // API'ı çağır
-      const newClub = await api.createClub(payload)
+      await api.createClub(payload)
       
-      // Başarılı! Yeni kulübün detay sayfasına yönlendir.
-      router.push(`/clubs/${newClub.id}`)
+      // Başarılı! Kulüpler sayfasına yönlendir.
+      router.push(`/clubs`)
       
     } catch (err) {
       if (err instanceof APIError) {

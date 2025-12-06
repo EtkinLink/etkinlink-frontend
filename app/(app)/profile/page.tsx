@@ -90,12 +90,14 @@ export default function ProfilePage() {
       setFormData({
         username: user.username,
         name: user.name,
-        university_id: user.university_id?.toString() || "none", 
-        bio: user.bio ?? "",
+        university_id: (user as any).university_id?.toString() || "none", 
+        bio: (user as any).bio ?? "",
       })
       
       fetchUniversities()
-      fetchParticipatedEvents(user.id) 
+      if (user.id) {
+        fetchParticipatedEvents(user.id) 
+      }
       fetchMyBadges()
       fetchMyClubs()
     }

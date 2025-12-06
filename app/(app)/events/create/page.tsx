@@ -106,30 +106,27 @@ export default function CreateEventPage() {
         throw new Error("Title, description, and start date are required.")
       }
 
+      const requiresApplication = formData.join_method === "APPLICATION_ONLY"
+
       const payload: any = {
         title: formData.title,
         explanation: formData.explanation,
         price: Number.parseFloat(formData.price) || 0,
         starts_at: new Date(formData.starts_at).toISOString(),
-        status: "FUTURE",
-        join_method: formData.join_method, // ✅ YENİ ALAN
+        ends_at: formData.ends_at ? new Date(formData.ends_at).toISOString() : null,
+        location_name: formData.location_name || null,
+        user_limit: formData.user_limit ? Number.parseInt(formData.user_limit) : null,
+        type_id: formData.type_id && formData.type_id !== "none" ? Number.parseInt(formData.type_id) : undefined,
+        latitude: formData.latitude ? Number.parseFloat(formData.latitude) : null,
+        longitude: formData.longitude ? Number.parseFloat(formData.longitude) : null,
+        owner_type: formData.club_id && formData.club_id !== "none" ? "ORGANIZATION" : "USER",
+        organization_id: formData.club_id && formData.club_id !== "none" ? Number.parseInt(formData.club_id) : null,
+        has_register: requiresApplication,
+        is_participants_private: false,
       }
 
-      // Opsiyonel alanları ekle
-      if (formData.ends_at) payload.ends_at = new Date(formData.ends_at).toISOString()
-      if (formData.location_name) payload.location_name = formData.location_name
-      if (formData.user_limit) payload.user_limit = Number.parseInt(formData.user_limit)
-      
-      // Select'ten gelen ID'leri kontrol et
-      if (formData.type_id && formData.type_id !== "none") payload.type_id = Number.parseInt(formData.type_id)
-      if (formData.club_id && formData.club_id !== "none") payload.club_id = Number.parseInt(formData.club_id)
-      
-      if (formData.latitude) payload.latitude = Number.parseFloat(formData.latitude)
-      if (formData.longitude) payload.longitude = Number.parseFloat(formData.longitude)
-
-      const response = await api.createEvent(payload)
-      // ✅ DÜZELTME: router.push -> window.location.href
-      window.location.href = `/events/${response.id}`
+      await api.createEvent(payload)
+      window.location.href = `/events`
       
     } catch (error: any) {
       if (error instanceof APIError) {

@@ -116,7 +116,8 @@ export default function ManageClubPage() {
   const handleApprove = async (applicationId: number) => {
     setProcessingId(applicationId)
     try {
-      await api.patchClubApplication(applicationId, "APPROVED")
+      if (!clubId) return
+      await api.patchClubApplication(clubId, applicationId, "APPROVED")
       // Listeyi yenilemek için verileri tekrar çek
       await fetchManagementData()
     } catch (err: any) {
@@ -130,7 +131,8 @@ export default function ManageClubPage() {
   const handleReject = async (applicationId: number) => {
     setProcessingId(applicationId)
     try {
-      await api.rejectClubApplication(applicationId)
+      if (!clubId) return
+      await api.patchClubApplication(clubId, applicationId, "REJECTED")
       // Listeyi yenilemek için verileri tekrar çek
       await fetchManagementData()
     } catch (err: any) {
@@ -280,7 +282,7 @@ export default function ManageClubPage() {
                                 <AvatarFallback>{member.username[0].toUpperCase()}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <p className="font-semibold">{member.name}</p>
+                                <p className="font-semibold">{member.name || member.username}</p>
                                 <p className="text-sm text-muted-foreground">@{member.username}</p>
                               </div>
                             </div>

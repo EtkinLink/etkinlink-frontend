@@ -12,7 +12,7 @@ import {
   Search,
   Filter,
   Map,
-  Plus, // "Create Event" butonu için
+  Plus, 
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -39,6 +39,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 
+// Types
 interface Event {
   id: number
   title: string
@@ -57,8 +58,8 @@ interface Event {
   join_method?: "DIRECT_JOIN" | "APPLICATION_ONLY"
 }
 
+// Date formatter
 function formatEventDate(iso: string) {
-  // SSR ve client farkını önlemek için UTC timezone ile sabit format
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
@@ -87,13 +88,12 @@ export default function EventsPage() {
   const [isMounted, setIsMounted] = useState(false)
   const [locationReady, setLocationReady] = useState(false)
 
-
-  // --- Bileşenin yüklendiğini belirt ---
+  // --- Mounting Check ---
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
-  // --- Giriş kontrolü ---
+  // --- Auth Check ---
   useEffect(() => {
     if (isMounted && !authLoading && !user) {
       const token = localStorage.getItem("access_token")
@@ -101,7 +101,7 @@ export default function EventsPage() {
     }
   }, [isMounted, user, authLoading, router])
 
-  // --- Etkinlik türlerini & konumu al ---
+  // --- Fetch Types & Location ---
   useEffect(() => {
     if (!isMounted || !user) return
 
@@ -110,32 +110,28 @@ export default function EventsPage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          // Başarılı: Gerçek konumu ayarla
           setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
           setLocationReady(true) 
         },
         () => {
-          // ✅ DÜZELTME: Hata durumunda varsayılan (fallback) konumu ayarla (Örn: İstanbul/İTÜ)
+          // Fallback location (Istanbul/ITU)
           setUserLocation({ lat: 41.1050, lng: 29.0250 }) 
           setLocationReady(true) 
         }
       )
     } else {
-      // ✅ Konum servisi yoksa, yine de varsayılan konumu kullan
       setUserLocation({ lat: 41.1050, lng: 29.0250 })
       setLocationReady(true) 
     }
   }, [isMounted, user])
 
-  
-  // --- Etkinlikleri al ---
+  // --- Fetch Events ---
   useEffect(() => {
     if (!isMounted || !user || !locationReady) {
       return
     }
     fetchEvents()
-  }, [isMounted, user, locationReady, page, selectedType, viewMode])
-
+  }, [isMounted, user, locationReady, page, selectedType, viewMode]) // Dependencies güncellendi
 
   const fetchEventTypes = async () => {
     try {
@@ -149,7 +145,7 @@ export default function EventsPage() {
   const fetchEvents = async () => {
     setIsLoading(true)
     try {
-      const params: any = { page, page_size: 12, sort: "starts_at", order: "asc" }
+      const params: any = { page, per_page: 12, sort: "starts_at", order: "asc" }
 
       if (viewMode === "nearby" && userLocation) {
         const response = await api.getNearbyEvents(userLocation.lat, userLocation.lng, 10, params)
@@ -205,60 +201,135 @@ export default function EventsPage() {
   const hasActiveFilters = searchQuery || selectedType !== "all" || dateFrom || dateTo
 
   return (
-      <main className="flex-1 bg-muted/30">
-        <div className="container py-8">
+    <main className="flex-1 bg-muted/30 min-h-screen">
+      <div className="container py-6 lg:py-8">
+        {/* Header Section */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Discover Events</h1>
+            <p className="text-muted-foreground">Find and join amazing campus events</p>
+          </div>
+          <Button asChild>
+            <Link href="/events/create">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Event
+            </Link>
+          </Button>
+        </div>
+
+        {/* Tabs Section */}
+        <Tabs
+          value={viewMode}
+          onValueChange={(v) => setViewMode(v as "all" | "nearby")}
+          className="mb-6"
+        >
+          <TabsList>
+            <TabsTrigger value="all">
+              <Search className="mr-2 h-4 w-4" />
+              All Events
+            </TabsTrigger>
+            <TabsTrigger value="nearby" disabled={!locationReady}>
+              <Map className="mr-2 h-4 w-4" />
+              Nearby Events {!userLocation && locationReady && "(Enable location)"}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* MAIN LAYOUT GRID 
+            lg:grid-cols-12 kullanarak daha hassas kontrol sağlıyoruz.
+            items-start: Sağ tarafın (Sticky) çalışması için kritik.
+        */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
           
-          {/* ✅ DEĞİŞİKLİK: Başlık ve Buton bir araya alındı */}
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">Discover Events</h1>
-              <p className="text-muted-foreground">Find and join amazing campus events</p>
-            </div>
-            <Button asChild>
-              <Link href="/events/create">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Event
-              </Link>
-            </Button>
+          {/* SOL KOLON (Etkinlik Listesi) 
+             Masaüstünde 7 birim yer kaplar.
+             Mobilde 'order-2' diyerek Filtrelerden sonra gelmesini sağlayabiliriz (isteğe bağlı).
+             Şimdilik standart akışta bırakıyorum.
+          */}
+          <div className="space-y-6 lg:col-span-7 xl:col-span-8">
+            {isLoading ? (
+              <div className="text-center py-12">
+                <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+                <p className="mt-4 text-muted-foreground">Loading events...</p>
+              </div>
+            ) : events.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  No events found matching your criteria.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2">
+                {events.map((ev) => (
+                  <Link key={ev.id} href={`/events/${ev.id}`}>
+                    <Card className="h-full transition hover:shadow-md hover:border-indigo-200">
+                      <CardHeader>
+                        <div className="mb-2 flex items-start justify-between">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary">{ev.event_type}</Badge>
+                            {ev.join_method === "APPLICATION_ONLY" && (
+                              <Badge variant="outline">Application Required</Badge>
+                            )}
+                          </div>
+                          {ev.price > 0 ? (
+                            <Badge variant="outline" className="border-green-600 text-green-600">${ev.price}</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-blue-600 text-blue-600">Free</Badge>
+                          )}
+                        </div>
+                        <CardTitle className="line-clamp-1">{ev.title}</CardTitle>
+                        <CardDescription className="line-clamp-2">{ev.explanation}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 shrink-0" />
+                          <span>{formatEventDate(ev.starts_at)}</span>
+                        </div>
+                        {ev.location_name && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{ev.location_name}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 shrink-0" />
+                          <span>{ev.participant_count} participants</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Tabs */}
-          <Tabs
-            value={viewMode}
-            onValueChange={(v) => setViewMode(v as "all" | "nearby")}
-            className="mb-6"
-          >
-            <TabsList>
-              <TabsTrigger value="all">
-                <Search className="mr-2 h-4 w-4" />
-                All Events
-              </TabsTrigger>
-              <TabsTrigger value="nearby" disabled={!locationReady}>
-                <Map className="mr-2 h-4 w-4" />
-                Nearby Events {!userLocation && locationReady && "(Enable location)"}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {/* Filters */}
-          <Card className="mb-6">
-            <CardContent className="pt-6">
-              <form onSubmit={handleSearch} className="space-y-4">
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  <div className="relative flex-1">
+          {/* SAĞ KOLON (Filtreler ve Harita)
+             Masaüstünde 5 birim yer kaplar.
+             Sticky: Kaydırma yaparken sabit kalır.
+          */}
+          <div className="flex flex-col gap-6 lg:col-span-5 xl:col-span-4 lg:sticky lg:top-6 h-fit">
+            
+            {/* Filter Card */}
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Filters</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSearch} className="space-y-4">
+                  <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       className="pl-9"
-                      placeholder="Search events..."
+                      placeholder="Search by name..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
 
                   <Select value={selectedType} onValueChange={(val) => setSelectedType(val)}>
-                    <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectTrigger className="w-full">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Type" />
+                      <SelectValue placeholder="Event Type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
@@ -269,105 +340,67 @@ export default function EventsPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
 
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                  <Button type="submit">Apply</Button>
-                  {hasActiveFilters && (
-                    <Button type="button" variant="outline" onClick={clearFilters}>
-                      Clear
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">From</span>
+                      <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">To</span>
+                      <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                    </div>
+                  </div>
 
-          {/* Map Overview */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Event Map</CardTitle>
-              <CardDescription>Discover events across Istanbul at a glance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EventMap
-                className="h-[320px] w-full overflow-hidden rounded-lg"
-                events={events.map((event) => ({
-                  id: event.id,
-                  title: event.title,
-                  latitude:
-                    typeof event.latitude === "number"
-                      ? event.latitude
-                      : event.latitude
-                        ? Number(event.latitude)
-                        : null,
-                  longitude:
-                    typeof event.longitude === "number"
-                      ? event.longitude
-                      : event.longitude
-                        ? Number(event.longitude)
-                        : null,
-                  location_name: event.location_name,
-                  starts_at: event.starts_at,
-                }))}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Events */}
-          {isLoading ? (
-            <div className="text-center py-12">
-              <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-              <p className="mt-4 text-muted-foreground">Loading events...</p>
-            </div>
-          ) : events.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No events found matching your criteria.
+                  <div className="flex gap-3 pt-2">
+                    <Button type="submit" className="flex-1">Apply Filters</Button>
+                    {hasActiveFilters && (
+                      <Button type="button" variant="outline" onClick={clearFilters}>
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </form>
               </CardContent>
             </Card>
-          ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {events.map((ev) => (
-                <Link key={ev.id} href={`/events/${ev.id}`}>
-                  <Card className="h-full transition hover:shadow-md">
-                    <CardHeader>
-                      <div className="mb-2 flex items-start justify-between">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="secondary">{ev.event_type}</Badge>
-                          {ev.join_method === "APPLICATION_ONLY" && (
-                            <Badge variant="outline">Application Required</Badge>
-                          )}
-                        </div>
-                        {ev.price > 0 && <Badge variant="outline">${ev.price}</Badge>}
-                      </div>
-                      <CardTitle>{ev.title}</CardTitle>
-                      <CardDescription>{ev.explanation}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        {formatEventDate(ev.starts_at)}
-                      </div>
-                      {ev.location_name && (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          {ev.location_name}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        {ev.participant_count} participants
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
+
+            {/* Map Card */}
+            <Card className="shadow-sm overflow-hidden">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <MapPin className="h-5 w-5" /> 
+                  Event Map
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 sm:p-6 sm:pt-0">
+                <EventMap
+                  // Sticky modda harita çok uzun olursa ekranı taşabilir, bu yüzden max-height veya sabit height veriyoruz.
+                  className="w-full h-[400px] lg:h-[500px] overflow-hidden sm:rounded-md"
+                  events={events.map((event) => ({
+                    id: event.id,
+                    title: event.title,
+                    latitude:
+                      typeof event.latitude === "number"
+                        ? event.latitude
+                        : event.latitude
+                          ? Number(event.latitude)
+                          : null,
+                    longitude:
+                      typeof event.longitude === "number"
+                        ? event.longitude
+                        : event.longitude
+                          ? Number(event.longitude)
+                          : null,
+                    location_name: event.location_name,
+                    starts_at: event.starts_at,
+                  }))}
+                />
+              </CardContent>
+            </Card>
+
+          </div>
         </div>
-      </main>
+      </div>
+    </main>
   )
 }

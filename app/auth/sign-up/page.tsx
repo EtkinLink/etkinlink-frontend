@@ -24,12 +24,6 @@ export default function SignupPage() {
     e.preventDefault()
     setError("")
 
-    // basit client-side validasyon
-    if (!/^[a-zA-Z0-9_]{3,}$/.test(username)) {
-      setError("Username must be at least 3 chars and use only letters, numbers, _")
-      return
-    }
-
     setIsLoading(true)
     try {
       await api.signup({ email, password, name, username })   // ✅ merkezi client

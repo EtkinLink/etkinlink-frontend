@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { EventMap } from "@/components/event-map"
 import { AddToCalendarButton } from "@/components/add-to-calendar-button"
 
+// Types
 interface EventDetail {
   id: number
   title: string
@@ -54,17 +55,17 @@ interface EventDetail {
   updated_at: string
   owner_username: string
   event_type: string
-  participant_count: number // ✅ participant_count burada number olarak doğru
+  participant_count: number
   participants: Array<{
     id: number
     username: string
     status: string
   }>
-  // ✅ Backend'den (get_event_by_id) bu iki alan da gelmeli
   owner_user_id: number
   type_id: number | null
   club_id: number | null
   join_method?: "DIRECT_JOIN" | "APPLICATION_ONLY"
+  has_register?: boolean
   my_application_status?: "PENDING" | "APPROVED" | string | null
 }
 
@@ -77,10 +78,12 @@ export default function EventDetailPage() {
   const [isJoining, setIsJoining] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
-  const [isMounted, setIsMounted] = useState(false) // Hydration için
+  const [isMounted, setIsMounted] = useState(false)
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null)
   const [applicationReason, setApplicationReason] = useState("")
   const [isApplying, setIsApplying] = useState(false)
+
+  // Maps URL Calculation
   const mapsUrl = useMemo(() => {
     if (!event) return null
     const lat =
@@ -105,11 +108,10 @@ export default function EventDetailPage() {
   }, [event])
 
   useEffect(() => {
-    setIsMounted(true) // İstemcide yüklendiğini belirt
+    setIsMounted(true)
     fetchEvent()
   }, [params.id])
 
-  // user objesi değiştiğinde (login/logout) 'hasJoined' durumunu yeniden hesapla
   useEffect(() => {
     if (user && event && event.participants) {
       const participant = event.participants.find((p: any) => p.username === user.username)
@@ -122,14 +124,12 @@ export default function EventDetailPage() {
       setHasJoined(false)
       setApplicationStatus(null)
     }
-  }, [user, event]) // 'event' veya 'user' yüklendiğinde çalışır
+  }, [user, event])
 
   const fetchEvent = async () => {
     try {
       const data = await api.getEvent(Number(params.id))
       setEvent(data)
-      // ✅ 'user' state'i bu ilk 'fetchEvent' sırasında henüz 'null' olabilir.
-      // Bu yüzden 'hasJoined' kontrolünü yukarıdaki ayrı useEffect'e taşıdık.
     } catch (error) {
       console.error("Failed to fetch event:", error)
     } finally {
@@ -158,7 +158,7 @@ export default function EventDetailPage() {
   }
 
   const handleJoin = async () => {
-    if (!user) { // Giriş yapmamışsa
+    if (!user) {
       router.push("/auth/login")
       return
     }
@@ -166,7 +166,7 @@ export default function EventDetailPage() {
     setIsJoining(true)
     try {
       await api.joinEvent(event.id)
-      await fetchEvent() // Veriyi tazelemek için
+      await fetchEvent()
     } catch (error: any) {
       alert(error.message || "Failed to join event")
     } finally {
@@ -175,7 +175,7 @@ export default function EventDetailPage() {
   }
 
   const handleLeave = async () => {
-    if (!user) { // Giriş yapmamışsa
+    if (!user) {
       router.push("/auth/login")
       return
     }
@@ -183,7 +183,7 @@ export default function EventDetailPage() {
     setIsJoining(true)
     try {
       await api.leaveEvent(event.id)
-      await fetchEvent() // Veriyi tazelemek için
+      await fetchEvent()
     } catch (error: any) {
       alert(error.message || "Failed to leave event")
     } finally {
@@ -196,14 +196,13 @@ export default function EventDetailPage() {
     setIsDeleting(true)
     try {
       await api.deleteEvent(event.id)
-      router.push("/events") // Başarılı silme sonrası etkinlikler sayfasına dön
+      router.push("/events")
     } catch (error: any) {
       alert(error.message || "Failed to delete event")
       setIsDeleting(false)
     }
   }
 
-  // Hydration hatasını önlemek için (tarih formatlaması var)
   if (!isMounted || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -221,7 +220,6 @@ export default function EventDetailPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-center">Event not found</p>
-            {/* ✅ "Geri Dön" butonu layout'ta değil, burada olmalı (doğru) */}
             <Link href="/events">
               <Button className="mt-4 w-full">Back to Events</Button>
             </Link>
@@ -232,12 +230,8 @@ export default function EventDetailPage() {
   }
 
   const isOwner = user?.username === event.owner_username
-  
-  // ✅ DÜZELTME (Vercel Build Hatası):
-  // 'isFull' değişkeninin her zaman 'boolean' (true/false) olmasını garanti et.
-  // 'null' (limit yok) ise 'false' (dolu değil) olarak kabul et.
   const isFull = event.user_limit !== null && event.participant_count >= event.user_limit
-  const requiresApplication = event.join_method === "APPLICATION_ONLY"
+  const requiresApplication = event.join_method === "APPLICATION_ONLY" || event.has_register
   const normalizedApplicationStatus = applicationStatus ? applicationStatus.toUpperCase() : null
   const isApplicationPending = normalizedApplicationStatus === "PENDING" && !hasJoined
   const isApplicationApproved = normalizedApplicationStatus === "APPROVED"
@@ -246,7 +240,7 @@ export default function EventDetailPage() {
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
         
-        {/* ✅ Geri Dön Butonu (layout'ta değil, burada olmalı - doğru) */}
+        {/* Back Button */}
         <Button asChild variant="ghost" className="mb-6">
           <Link href="/events">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -254,9 +248,16 @@ export default function EventDetailPage() {
           </Link>
         </Button>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
+        {/* LAYOUT GRID YAPISI
+            lg:grid-cols-3 -> Masaüstünde 3 sütun
+            Sol taraf 2 birim (span-2), Sağ taraf 1 birim yer kaplar.
+        */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          
+          {/* ======================= */}
+          {/* SOL TARAF (ANA İÇERİK)  */}
+          {/* ======================= */}
+          <div className="flex flex-col gap-6 lg:col-span-2">
             <Card>
               <CardHeader>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
@@ -269,7 +270,6 @@ export default function EventDetailPage() {
                   </div>
                   {isOwner && (
                     <div className="flex gap-2">
-                      {/* TODO: /edit sayfası oluşturulmadı, bu link şu an 404 verir */}
                       <Link href={`/events/${event.id}/edit`}>
                         <Button size="sm" variant="outline">
                           <Edit className="mr-2 h-4 w-4" />
@@ -317,7 +317,6 @@ export default function EventDetailPage() {
                     <Calendar className="mt-1 h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">Date & Time</p>
-                      {/* Hydration hatası vermemesi için 'isMounted' kontrolü eklendi */}
                       {isMounted && (
                         <>
                           <p className="text-sm text-muted-foreground">
@@ -374,7 +373,6 @@ export default function EventDetailPage() {
                   </div>
                 </div>
 
-                {/* Kullanıcı etkinliğin sahibi DEĞİLSE Katıl/Ayrıl butonlarını göster */}
                 {!isOwner && (
                   <>
                     <Separator />
@@ -445,16 +443,39 @@ export default function EventDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Map Section */}
-            <Card className="mt-6">
+            {/* Ratings Section */}
+            <Card>
               <CardHeader>
-                <CardTitle>Location Map</CardTitle>
-                <CardDescription>Visualize where this event takes place</CardDescription>
+                <CardTitle>Ratings & Reviews</CardTitle>
               </CardHeader>
               <CardContent>
+                <Link href={`/events/${event.id}/ratings`}>
+                  <Button variant="outline" className="w-full bg-transparent">
+                    <Star className="mr-2 h-4 w-4" />
+                    View All Ratings
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+          {/* SOL TARAFTAKİ DİV BURADA KAPANIYOR */}
+
+          
+          {/* ======================= */}
+          {/* SAĞ TARAF (SIDEBAR)     */}
+          {/* ======================= */}
+          <div className="flex h-fit flex-col gap-6">
+            
+            {/* 1. MAP CARD (EN ÜSTTE) */}
+            <Card className="overflow-hidden">
+              <CardHeader>
+                <CardTitle>Location Map</CardTitle>
+                <CardDescription>Event location</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
                 <EventMap
-                  height={320}
-                  className="w-full overflow-hidden rounded-lg"
+                  height={300}
+                  className="w-full"
                   events={[
                     {
                       id: event.id,
@@ -479,26 +500,7 @@ export default function EventDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Ratings Section */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Ratings & Reviews</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* TODO: /ratings sayfası oluşturulmadı, bu link şu an 404 verir */}
-                <Link href={`/events/${event.id}/ratings`}>
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <Star className="mr-2 h-4 w-4" />
-                    View All Ratings
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Participants */}
+            {/* 2. Participants Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Participants ({event.participant_count})</CardTitle>
@@ -527,11 +529,11 @@ export default function EventDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Calendar & Maps */}
+            {/* 3. Calendar & Links Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Calendar & Maps</CardTitle>
-                <CardDescription>Save this event or explore the location</CardDescription>
+                <CardTitle>Calendar & Links</CardTitle>
+                <CardDescription>Save this event</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <AddToCalendarButton
@@ -555,7 +557,7 @@ export default function EventDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Owner Actions */}
+            {/* 4. Owner Actions (If applicable) */}
             {isOwner && (
               <Card>
                 <CardHeader>
@@ -567,15 +569,12 @@ export default function EventDetailPage() {
                       View Applications
                     </Button>
                   </Link>
-                  <Link href={`/events/${event.id}/attendance`}>
-                    <Button variant="outline" className="w-full bg-transparent">
-                      Manage Attendance
-                    </Button>
-                  </Link>
                 </CardContent>
               </Card>
             )}
           </div>
+          {/* SAĞ TARAFTAKİ DİV BURADA KAPANIYOR */}
+
         </div>
       </div>
     </div>

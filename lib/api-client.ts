@@ -217,8 +217,16 @@ export const api = {
   },
     
   // ---------- Attendance ----------
-  getAttendance: async () => [],
-  setAttendance: async () => ({ message: "Attendance management is not available in this backend" }),
+  getAttendance: async (eventId: number) => {
+    const resp = await fetchAPI(`/events/${eventId}/attendance`)
+    // Backend may return either an array or an object with an "attendance" field
+    return Array.isArray(resp) ? resp : resp?.attendance ?? []
+  },
+  setAttendance: async (eventId: number, userId: number, status: "ATTENDED" | "NO_SHOW") =>
+    fetchAPI(`/events/${eventId}/attendance/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
 
   // ---------- Event Applications ----------
   createApplication: (eventId: number, whyMe?: string) =>
@@ -245,9 +253,13 @@ export const api = {
     }),
 
   // ---------- Organizations (Clubs placeholder) ----------
-  getClubs: async () => {
+  getClubs: async (universityId?: number) => {
     const resp = await fetchAPI("/organizations")
-    return mapPaginatedResponse(resp).items?.map((item: any) => ({
+    const items = mapPaginatedResponse(resp).items ?? []
+    const filtered = typeof universityId === "number"
+      ? items.filter((item: any) => item.university_id === universityId)
+      : items
+    return filtered.map((item: any) => ({
       id: item.id,
       name: item.name,
       description: item.description,
@@ -260,6 +272,8 @@ export const api = {
   },
   getClub: async (id: number) => {
     const data = await fetchAPI<any>(`/organizations/${id}`)
+    const joinMethod: "OPEN" | "APPLICATION_ONLY" =
+      data?.join_method === "OPEN" ? "OPEN" : "APPLICATION_ONLY"
     return {
       id: data.id,
       name: data.name,
@@ -268,7 +282,7 @@ export const api = {
       owner_username: data.owner_username,
       university_name: "",
       member_count: Array.isArray(data.members) ? data.members.length : 0,
-      join_method: "APPLICATION_ONLY",
+      join_method: joinMethod,
       status: data.status,
       photo_url: data.photo_url,
       events: Array.isArray(data.events)

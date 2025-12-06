@@ -61,21 +61,6 @@ export default function ManageClubPage() {
     setIsMounted(true)
   }, [])
 
-  // 2. Ana veri yükleme (Başvurular, Üyeler, Kulüp Bilgisi)
-  useEffect(() => {
-    if (!isMounted || !clubId || !user) return
-
-    // Sadece giriş yapan kullanıcılar bu sayfayı görebilir
-    if (!user) {
-      router.push("/auth/login")
-      return
-    }
-
-    fetchManagementData()
-    
-  }, [isMounted, clubId, user, router, fetchManagementData])
-
-
   // Veri çekme fonksiyonu
   const fetchManagementData = useCallback(async () => {
     if (!clubId) return
@@ -108,6 +93,20 @@ export default function ManageClubPage() {
       setIsLoading(false)
     }
   }, [clubId, router])
+
+  // 2. Ana veri yükleme (Başvurular, Üyeler, Kulüp Bilgisi)
+  useEffect(() => {
+    if (!isMounted || !clubId || !user) return
+
+    // Sadece giriş yapan kullanıcılar bu sayfayı görebilir
+    if (!user) {
+      router.push("/auth/login")
+      return
+    }
+
+    fetchManagementData()
+    
+  }, [isMounted, clubId, user, router, fetchManagementData])
 
 
   // --- EVENT HANDLERS (Başvuru Yönetimi) ---

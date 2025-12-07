@@ -111,7 +111,12 @@ export default function ClubDetailPage() {
       try {
         // ✅ GÜNCELLEME: Backend'e eklediğimiz yeni endpoint'i çağır
         const statusData = await api.getMyClubApplicationStatus(clubId)
-        setMembershipStatus(statusData.status)
+        let status: ApplicationStatus = statusData.status
+        // Owner isen otomatik ADMIN kabul et
+        if (club && club.owner_username && club.owner_username === user.username) {
+          status = "ADMIN"
+        }
+        setMembershipStatus(status)
       } catch (err) {
         console.error("Failed to fetch membership status:", err)
       }
@@ -119,7 +124,7 @@ export default function ClubDetailPage() {
     
     fetchMembershipStatus()
 
-  }, [isMounted, clubId, user])
+  }, [isMounted, clubId, user, club])
 
   
   // --- EVENT HANDLERS ---

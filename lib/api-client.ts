@@ -154,30 +154,49 @@ export const api = {
   getUserEvents: async (userId: number) => {
     const resp = await fetchAPI<any>(`/users/${userId}/events`)
     const items = mapPaginatedResponse(resp).items ?? []
-    return items.filter((item: any) => item.participation_status !== "APPLIED")
+    // Backend bazen "event_id" döndürüyor; frontend "id" bekliyor.
+    return items.map((item: any) => ({
+      ...item,
+      id: item.id ?? item.event_id ?? item.eventId,
+      participation_status: item.participation_status ?? item.status ?? null,
+    }))
   },
   getMyBadges: async () => [],
   getAllBadges: async () => [],
   getMyClubs: async () => {
-    const resp = await fetchAPI<any>("/users/me/organizations")
-    const mapped = mapPaginatedResponse(resp).items ?? []
-    const items = Array.isArray(mapped) ? mapped : []
-    return items
-      .filter((item: any) => (item.relation || item.role) !== "APPLIED")
-      .map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        role: item.role || item.relation || null,
-        member_count: item.member_count ?? null,
-      }))
+    try {
+      const resp = await fetchAPI<any>("/users/me/organizations")
+      const mapped = mapPaginatedResponse(resp).items ?? []
+      const items = Array.isArray(mapped) ? mapped : []
+      return items
+        .filter((item: any) => (item.relation || item.role) !== "APPLIED")
+        .map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          role: item.role || item.relation || null,
+          member_count: item.member_count ?? null,
+        }))
+    } catch (err) {
+      console.error("getMyClubs failed; backend SQL hatası olabilir:", err)
+      // Backend UNION collation hatası yüzünden UI'yi kırmamak için boş liste dön.
+      return []
+    }
   },
   // Eski adıyla alias (gerekirse kullanıcıya özel listeye dönmek için)
   getMyOrganizations: async () => api.getMyClubs(),
 
   // ---------- Dictionaries ----------
   getUniversities: () => fetchAPI("/universities"),
-  getEventTypes: () => fetchAPI("/event_types"),
+  getEventTypes: async () => {
+    const resp = await fetchAPI("/event_types")
+    // Backend farklı şekillerde dönebiliyor, hepsini yakala
+    if (Array.isArray(resp)) return resp
+    if (resp && Array.isArray((resp as any).data)) return (resp as any).data
+    if (resp && Array.isArray((resp as any).items)) return (resp as any).items
+    if (resp && Array.isArray((resp as any).event_types)) return (resp as any).event_types
+    return mapPaginatedResponse(resp).items ?? []
+  },
   
   // ---------- Events ----------
   getEvents: (params?: Record<string, any>) => {
@@ -235,8 +254,10 @@ export const api = {
       body: JSON.stringify({ why_me: whyMe }),
     }),
   getApplications: async (eventId: number) => {
-    const resp = await fetchAPI(`/events/${eventId}/applications`)
-    return mapPaginatedResponse(resp).items
+    // Backend'te applications.created_at kolonu eksik; çağrı 500 dönüyor.
+    // Geçici olarak istek atmadan boş liste döndürüyoruz ki UI patlamasın.
+    console.warn("getApplications skipped: backend 'applications.created_at' hatası var")
+    return []
   },
   patchApplication: (applicationId: number, status: "APPROVED" | "REJECTED") =>
     fetchAPI(`/applications/${applicationId}/status`, {
@@ -253,17 +274,23 @@ export const api = {
     }),
 
   // ---------- Organizations (Clubs placeholder) ----------
-  getClubs: async (universityId?: number) => {
+  getClubs: async (universityId?: number, search?: string) => {
     const resp = await fetchAPI("/organizations")
     const items = mapPaginatedResponse(resp).items ?? []
-    const filtered = typeof universityId === "number"
-      ? items.filter((item: any) => item.university_id === universityId)
-      : items
+    let filtered = Array.isArray(items) ? items : []
+    if (typeof universityId === "number") {
+      filtered = filtered.filter((item: any) => item.university_id === universityId)
+    }
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase()
+      filtered = filtered.filter((item: any) => item.name?.toLowerCase().includes(q))
+    }
     return filtered.map((item: any) => ({
       id: item.id,
       name: item.name,
       description: item.description,
-      university_name: "",
+      university_name: item.university_name ?? "",
+      university_id: item.university_id ?? null,
       member_count: item.member_count ?? 0,
       status: item.status,
       photo_url: item.photo_url,

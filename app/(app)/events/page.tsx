@@ -71,6 +71,7 @@ function formatEventDate(iso: string) {
 }
 
 export default function EventsPage() {
+  const PER_PAGE = 6
   const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
 
@@ -137,7 +138,8 @@ export default function EventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true)
     try {
-      const params: any = { page, per_page: 12, sort: "starts_at", order: "asc" }
+      // En yeni/gelecek etkinlikleri öne almak için starts_at desc; sayfa başına 4 kayıt
+      const params: any = { page, per_page: PER_PAGE, sort: "starts_at", order: "desc" }
 
       if (viewMode === "nearby" && userLocation) {
         const response = await api.getNearbyEvents(userLocation.lat, userLocation.lng, 10, params)
@@ -259,47 +261,67 @@ export default function EventsPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2">
-                {events.map((ev) => (
-                  <Link key={ev.id} href={`/events/${ev.id}`}>
-                    <Card className="h-full transition hover:shadow-md hover:border-indigo-200">
-                      <CardHeader>
-                        <div className="mb-2 flex items-start justify-between">
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="secondary">{ev.event_type}</Badge>
-                            {ev.join_method === "APPLICATION_ONLY" && (
-                              <Badge variant="outline">Application Required</Badge>
+              <>
+                <div className="grid gap-6 sm:grid-cols-2">
+                  {events.map((ev) => (
+                    <Link key={ev.id} href={`/events/${ev.id}`}>
+                      <Card className="h-full transition hover:shadow-md hover:border-indigo-200">
+                        <CardHeader>
+                          <div className="mb-2 flex items-start justify-between">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="secondary">{ev.event_type}</Badge>
+                              {ev.join_method === "APPLICATION_ONLY" && (
+                                <Badge variant="outline">Application Required</Badge>
+                              )}
+                            </div>
+                            {ev.price > 0 ? (
+                              <Badge variant="outline" className="border-green-600 text-green-600">${ev.price}</Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-blue-600 text-blue-600">Free</Badge>
                             )}
                           </div>
-                          {ev.price > 0 ? (
-                            <Badge variant="outline" className="border-green-600 text-green-600">${ev.price}</Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-blue-600 text-blue-600">Free</Badge>
-                          )}
-                        </div>
-                        <CardTitle className="line-clamp-1">{ev.title}</CardTitle>
-                        <CardDescription className="line-clamp-2">{ev.explanation}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="text-sm text-muted-foreground space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 shrink-0" />
-                          <span>{formatEventDate(ev.starts_at)}</span>
-                        </div>
-                        {ev.location_name && (
+                          <CardTitle className="line-clamp-1">{ev.title}</CardTitle>
+                          <CardDescription className="line-clamp-2">{ev.explanation}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground space-y-2">
                           <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{ev.location_name}</span>
+                            <Calendar className="h-4 w-4 shrink-0" />
+                            <span>{formatEventDate(ev.starts_at)}</span>
                           </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 shrink-0" />
-                          <span>{ev.participant_count} participants</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
+                          {ev.location_name && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{ev.location_name}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 shrink-0" />
+                            <span>{ev.participant_count} participants</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-center gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    disabled={page === 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">Page {page}</span>
+                  <Button
+                    variant="outline"
+                    disabled={events.length < PER_PAGE}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </>
             )}
           </div>
 

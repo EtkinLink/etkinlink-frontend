@@ -39,6 +39,7 @@ interface ClubMember {
 interface ClubInfo {
   id: number
   name: string
+  owner_username?: string | null
 }
 
 export default function ManageClubPage() {
@@ -68,21 +69,36 @@ export default function ManageClubPage() {
     setError(null)
     
     try {
-      // 3 API isteğini aynı anda yap
-      const [clubData, applicationsData, membersData] = await Promise.all([
-        api.getClub(clubId),
-        api.getClubApplications(clubId),
-        api.getClubMembers(clubId)
-      ])
-      
+      const clubData = await api.getClub(clubId)
       setClub(clubData)
-      // Sadece 'PENDING' olanları filtrele (backend zaten yapıyor olabilir ama garanti olsun)
-      setApplications(applicationsData.filter((app: ClubApplication) => app.status === 'PENDING'))
-      setMembers(membersData)
+      const isOwner = user?.username && clubData?.owner_username === user.username
+
+      const [applicationsResp, membersResp] = await Promise.allSettled([
+        api.getClubApplications(clubId),
+        api.getClubMembers(clubId),
+      ])
+      const applicationsError = applicationsResp.status === "rejected" ? applicationsResp.reason : null
+      const membersError = membersResp.status === "rejected" ? membersResp.reason : null
+
+      if (applicationsResp.status === "fulfilled") {
+        setApplications(applicationsResp.value.filter((app: ClubApplication) => app.status === "PENDING"))
+      } else if (!(applicationsError instanceof APIError && applicationsError.status === 403 && isOwner)) {
+        throw applicationsError
+      }
+
+      if (membersResp.status === "fulfilled") {
+        setMembers(membersResp.value)
+      } else if (!(membersError instanceof APIError && membersError.status === 403 && isOwner)) {
+        throw membersError
+      }
+
+      // Eğer owner isen ve backend üyelik arıyor ama 403 veriyorsa, yine de sayfayı göster
+      if ((applicationsResp.status === "rejected" || membersResp.status === "rejected") && !isOwner) {
+        throw applicationsError ?? membersError
+      }
 
     } catch (err: any) {
       if (err instanceof APIError && err.status === 403) {
-        // Kullanıcı bu kulübün admini değilse
         setError("You are not authorized to manage this club.")
         alert("You are not authorized to manage this club.")
         router.push(`/clubs/${clubId}`)
@@ -92,7 +108,7 @@ export default function ManageClubPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [clubId, router])
+  }, [clubId, router, user?.username])
 
   // 2. Ana veri yükleme (Başvurular, Üyeler, Kulüp Bilgisi)
   useEffect(() => {

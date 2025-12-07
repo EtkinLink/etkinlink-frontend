@@ -21,6 +21,7 @@ import {
   Star,
   ArrowLeft,
   ExternalLink,
+  Clock, // İkon eklendi
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -79,6 +80,8 @@ export default function EventDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
+  
+  // Başvuru durumu için state
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null)
   const [applicationReason, setApplicationReason] = useState("")
   const [isApplying, setIsApplying] = useState(false)
@@ -99,10 +102,10 @@ export default function EventDetailPage() {
           ? Number(event.longitude)
           : null
     if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-      return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+      return `http://maps.google.com/?q=${lat},${lng}`
     }
     if (event?.location_name) {
-      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location_name)}`
+      return `http://maps.google.com/?q=${encodeURIComponent(event.location_name)}`
     }
     return null
   }, [event])
@@ -124,18 +127,60 @@ export default function EventDetailPage() {
   }, [params.id, fetchEvent])
 
   useEffect(() => {
-    if (user && event && event.participants) {
-      const participant = event.participants.find((p: any) => p.username === user.username)
-      setHasJoined(Boolean(participant && participant.status !== "PENDING"))
-      const derivedStatus =
-        event.my_application_status ??
-        (participant ? participant.status : null)
-      setApplicationStatus(derivedStatus ?? null)
-    } else {
-      setHasJoined(false)
-      setApplicationStatus(null)
+    const checkStatus = async () => {
+      // User.id kontrolünü en başa ekledik
+      if (!user || !user.id || !event) return
+
+      // 1. Backend event detayında statü dönüyorsa onu al
+      if (event.my_application_status) {
+        setApplicationStatus(event.my_application_status)
+      }
+
+      // 2. Katılımcı listesinde var mı?
+      let foundInParticipants = false
+      if (event.participants) {
+        const participant = event.participants.find((p: any) => p.username === user.username)
+        if (participant) {
+          foundInParticipants = true
+          const status = participant.status?.toString().toUpperCase()
+          
+          if (["PENDING", "APPLIED"].includes(status)) {
+            setApplicationStatus("PENDING")
+            setHasJoined(false)
+          } else {
+            // APPROVED, JOINED, ATTENDED
+            setHasJoined(true)
+            setApplicationStatus(status)
+          }
+        }
+      }
+
+      // 3. Eğer katılımcı listesinde yoksa...
+      if (!foundInParticipants) {
+        try {
+          // BURADAKİ HATA DÜZELTİLDİ: (user.id ?? -1)
+          // Eğer user.id null ise -1 gönderiyoruz ki typescript kızmasın.
+          const myEvents = await api.getUserEvents(user.id ?? -1)
+          const found = myEvents.find((ev: any) => ev.id === Number(params.id))
+          
+          if (found) {
+            const status = (found.participation_status || found.status || "").toString().toUpperCase()
+            if (["PENDING", "APPLIED"].includes(status)) {
+              setApplicationStatus("PENDING")
+              setHasJoined(false)
+            } else if (["APPROVED", "JOINED", "ATTENDED"].includes(status)) {
+              setHasJoined(true)
+              setApplicationStatus("APPROVED")
+            }
+          }
+        } catch (err) {
+          console.error("Failed to check user events status", err)
+        }
+      }
     }
-  }, [user, event])
+
+    checkStatus()
+  }, [user, event, params.id])
 
   const handleApply = async () => {
     if (!user) {
@@ -147,11 +192,18 @@ export default function EventDetailPage() {
     try {
       const reason = applicationReason.trim()
       await api.createApplication(event.id, reason ? reason : undefined)
+      
+      // Başarılı olursa durumu PENDING'e çek ve formu kilitle
       setApplicationStatus("PENDING")
       setApplicationReason("")
-      await fetchEvent()
+      await fetchEvent() // Verileri tazelemek için
     } catch (error: any) {
-      alert(error.message || "Failed to submit application")
+      // Eğer backend 409 (Conflict - Zaten başvurmuş) dönüyorsa, UI'ı PENDING yap
+      if (error?.status === 409 || error?.message?.toLowerCase().includes("already")) {
+        setApplicationStatus("PENDING")
+      } else {
+        alert(error.message || "Failed to submit application")
+      }
     } finally {
       setIsApplying(false)
     }
@@ -167,6 +219,7 @@ export default function EventDetailPage() {
     try {
       await api.joinEvent(event.id)
       await fetchEvent()
+      setHasJoined(true)
     } catch (error: any) {
       alert(error.message || "Failed to join event")
     } finally {
@@ -184,6 +237,8 @@ export default function EventDetailPage() {
     try {
       await api.leaveEvent(event.id)
       await fetchEvent()
+      setHasJoined(false)
+      setApplicationStatus(null)
     } catch (error: any) {
       alert(error.message || "Failed to leave event")
     } finally {
@@ -232,8 +287,14 @@ export default function EventDetailPage() {
   const isOwner = user?.username === event.owner_username
   const isFull = event.user_limit !== null && event.participant_count >= event.user_limit
   const requiresApplication = event.join_method === "APPLICATION_ONLY" || event.has_register
+  
   const normalizedApplicationStatus = applicationStatus ? applicationStatus.toUpperCase() : null
-  const isApplicationPending = normalizedApplicationStatus === "PENDING" && !hasJoined
+  
+  // Pending kontrolü: Statü PENDING/APPLIED ise VE henüz içeride değilse
+  const isApplicationPending = normalizedApplicationStatus
+    ? ["PENDING", "APPLIED"].includes(normalizedApplicationStatus) && !hasJoined
+    : false
+    
   const isApplicationApproved = normalizedApplicationStatus === "APPROVED"
 
   return (
@@ -248,10 +309,6 @@ export default function EventDetailPage() {
           </Link>
         </Button>
 
-        {/* LAYOUT GRID YAPISI
-            lg:grid-cols-3 -> Masaüstünde 3 sütun
-            Sol taraf 2 birim (span-2), Sağ taraf 1 birim yer kaplar.
-        */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           
           {/* ======================= */}
@@ -378,35 +435,51 @@ export default function EventDetailPage() {
                     <Separator />
                     {requiresApplication ? (
                       <div className="space-y-4">
-                        <div className="rounded-md border border-dashed border-muted-foreground/40 p-4 text-sm text-muted-foreground">
-                          This event requires an application before you can join.
-                        </div>
+                        {/* 1. Durum: Zaten Kabul Edilmiş / Katılmış */}
                         {hasJoined ? (
-                          <Button
-                            onClick={handleLeave}
-                            disabled={isJoining}
-                            variant="outline"
-                            className="flex-1 bg-transparent"
-                          >
-                            <UserMinus className="mr-2 h-4 w-4" />
-                            {isJoining ? "Leaving..." : "Leave Event"}
-                          </Button>
+                          <div className="space-y-3">
+                            <div className="rounded-md bg-green-50 p-3 text-sm text-green-700 border border-green-200 text-center font-medium">
+                               You have joined this event!
+                            </div>
+                            <Button
+                              onClick={handleLeave}
+                              disabled={isJoining}
+                              variant="outline"
+                              className="w-full text-destructive hover:text-destructive hover:bg-destructive/5"
+                            >
+                              <UserMinus className="mr-2 h-4 w-4" />
+                              {isJoining ? "Leaving..." : "Leave Event"}
+                            </Button>
+                          </div>
                         ) : isApplicationPending ? (
-                          <Button disabled variant="outline" className="w-full bg-transparent">
-                            Application Pending
-                          </Button>
+                          /* 2. Durum: Başvuru Beklemede (Kilitli Durum) */
+                          <div className="space-y-3">
+                            <div className="rounded-md bg-yellow-50 p-4 text-sm text-yellow-700 border border-yellow-200 flex items-center justify-center gap-2">
+                               <Clock className="h-4 w-4" />
+                               Your application is currently pending approval.
+                            </div>
+                            <Button disabled className="w-full bg-muted text-muted-foreground border-dashed border cursor-not-allowed">
+                              Application Pending
+                            </Button>
+                          </div>
                         ) : isApplicationApproved ? (
-                          <Button onClick={handleJoin} disabled={isJoining || isFull} className="flex-1">
+                          /* 3. Durum: Onaylanmış ama son tıklama eksik (Nadir) */
+                          <Button onClick={handleJoin} disabled={isJoining || isFull} className="w-full bg-green-600 hover:bg-green-700">
                             <UserPlus className="mr-2 h-4 w-4" />
-                            {isJoining ? "Joining..." : isFull ? "Event Full" : "Join Event"}
+                            {isJoining ? "Joining..." : isFull ? "Event Full" : "Join Event Now"}
                           </Button>
                         ) : (
-                          <div className="space-y-2">
+                          /* 4. Durum: Henüz başvurmamış -> Formu göster */
+                          <div className="space-y-3">
+                            <div className="rounded-md border border-dashed border-muted-foreground/40 p-4 text-sm text-muted-foreground">
+                              This event requires an application. Please explain why you want to join.
+                            </div>
                             <Textarea
-                              placeholder="Tell the organizer why you'd like to join (optional)"
+                              placeholder="Message to the organizer (why do you want to join?)"
                               value={applicationReason}
                               onChange={(e) => setApplicationReason(e.target.value)}
                               disabled={isApplying}
+                              className="min-h-[100px]"
                             />
                             <Button
                               onClick={handleApply}
@@ -419,6 +492,7 @@ export default function EventDetailPage() {
                         )}
                       </div>
                     ) : (
+                      /* Başvuru GEREKTİRMEYEN (Direct Join) Eventler */
                       <div className="flex gap-2">
                         {hasJoined ? (
                           <Button
@@ -458,15 +532,13 @@ export default function EventDetailPage() {
               </CardContent>
             </Card>
           </div>
-          {/* SOL TARAFTAKİ DİV BURADA KAPANIYOR */}
 
-          
           {/* ======================= */}
           {/* SAĞ TARAF (SIDEBAR)     */}
           {/* ======================= */}
           <div className="flex h-fit flex-col gap-6">
             
-            {/* 1. MAP CARD (EN ÜSTTE) */}
+            {/* 1. MAP CARD */}
             <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle>Location Map</CardTitle>
@@ -557,7 +629,7 @@ export default function EventDetailPage() {
               </CardContent>
             </Card>
 
-            {/* 4. Owner Actions (If applicable) */}
+            {/* 4. Owner Actions */}
             {isOwner && (
               <Card>
                 <CardHeader>
@@ -573,7 +645,6 @@ export default function EventDetailPage() {
               </Card>
             )}
           </div>
-          {/* SAĞ TARAFTAKİ DİV BURADA KAPANIYOR */}
 
         </div>
       </div>

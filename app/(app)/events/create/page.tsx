@@ -44,13 +44,13 @@ interface EventFormData {
 // ----------------------
 
 export default function CreateEventPage() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   // const router = useRouter() // ✅ DÜZELTME: Kaldırıldı
   
   const [eventTypes, setEventTypes] = useState<any[]>([])
   const [myClubs, setMyClubs] = useState<MyClub[]>([]) // ✅ YENİ
   
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null) // Hata mesajı state'i
   
   const [formData, setFormData] = useState<EventFormData>({
@@ -61,7 +61,7 @@ export default function CreateEventPage() {
     ends_at: "",
     location_name: "",
     user_limit: "",
-    type_id: "none", // Varsayılan tip ID
+    type_id: "none", // Varsayılan tip ID; liste geldikten sonra güncellenecek
     latitude: "",
     longitude: "",
     // ✅ YENİ
@@ -71,31 +71,39 @@ export default function CreateEventPage() {
   
   // Veri çekme ve Auth kontrolü
   useEffect(() => {
+    // Auth yüklenirken yönlendirme yapma; F5 sonrası token kaybı yaşıyorduk
+    if (authLoading) return
     if (!user) {
-      // ✅ DÜZELTME: router.push -> window.location.href
       window.location.href = "/auth/login" 
       return
     }
     fetchDropdownData()
-  }, [user])
+  }, [user, authLoading])
 
   const fetchDropdownData = async () => {
-    try {
-      // ✅ 3 API isteğini aynı anda çek
-      const [types, clubsData] = await Promise.all([
-        api.getEventTypes(),
-        api.getMyClubs(),
-      ])
-      setEventTypes(types)
-      setMyClubs(clubsData)
-    } catch (error) {
-      console.error("Failed to fetch dropdown data:", error)
-    }
+    // Event type'ları kulüp isteği bozulsa bile çekebilmek için ayrı ayrı yakala
+    api.getEventTypes()
+      .then((types) => {
+        const list = types ?? []
+        setEventTypes(list)
+        // İlk event tipini otomatik seç
+        if (list.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            type_id: prev.type_id !== "none" ? prev.type_id : String(list[0].id ?? ""),
+          }))
+        }
+      })
+      .catch((err) => console.error("Failed to fetch event types:", err))
+
+    api.getMyClubs()
+      .then((clubs) => setMyClubs(clubs ?? []))
+      .catch((err) => console.warn("Kulüp listesi alınamadı, kişisel modda devam:", err))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setIsSubmitting(true)
     setError(null) // Hata mesajını temizle
 
     try {
@@ -103,15 +111,26 @@ export default function CreateEventPage() {
       if (!formData.title || !formData.explanation || !formData.starts_at) {
         throw new Error("Title, description, and start date are required.")
       }
+      if (!formData.type_id || formData.type_id === "none") {
+        throw new Error("Event type is required.")
+      }
 
       const requiresApplication = formData.join_method === "APPLICATION_ONLY"
+
+      const formatForBackend = (value: string | null) => {
+        if (!value) return null
+        // datetime-local'dan gelen değeri (YYYY-MM-DDTHH:mm) doğrudan kullan, saniye ekle
+        // Z'li ISO'ya çevirmiyoruz; MySQL DATETIME için 'YYYY-MM-DD HH:mm:ss' yeterli
+        const withSpace = value.replace("T", " ")
+        return withSpace.length === 16 ? `${withSpace}:00` : withSpace // saniye yoksa ekle
+      }
 
       const payload: any = {
         title: formData.title,
         explanation: formData.explanation,
         price: Number.parseFloat(formData.price) || 0,
-        starts_at: new Date(formData.starts_at).toISOString(),
-        ends_at: formData.ends_at ? new Date(formData.ends_at).toISOString() : null,
+        starts_at: formatForBackend(formData.starts_at),
+        ends_at: formatForBackend(formData.ends_at),
         location_name: formData.location_name || null,
         user_limit: formData.user_limit ? Number.parseInt(formData.user_limit) : null,
         type_id: formData.type_id && formData.type_id !== "none" ? Number.parseInt(formData.type_id) : undefined,
@@ -133,7 +152,7 @@ export default function CreateEventPage() {
         setError(error.message || "Failed to create event")
       }
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -144,6 +163,10 @@ export default function CreateEventPage() {
   // ✅ YENİ: RadioGroup için handler
   const handleRadioChange = (value: string) => {
     setFormData((prev) => ({ ...prev, join_method: value as "DIRECT_JOIN" | "APPLICATION_ONLY" }))
+  }
+
+  if (authLoading) {
+    return null
   }
 
   if (!user) {
@@ -351,8 +374,8 @@ export default function CreateEventPage() {
 
               {/* --- Butonlar --- */}
               <div className="flex gap-4">
-                <Button type="submit" disabled={isLoading} className="flex-1">
-                  {isLoading ? "Creating..." : "Create Event"}
+                <Button type="submit" disabled={isSubmitting} className="flex-1">
+                  {isSubmitting ? "Creating..." : "Create Event"}
                 </Button>
                 <Button asChild type="button" variant="outline" className="flex-1 bg-transparent">
                   <Link href="/events">Cancel</Link>

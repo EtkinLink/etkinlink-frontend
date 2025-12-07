@@ -15,6 +15,7 @@ interface Club {
   name: string
   description: string | null
   university_name: string
+  university_id?: number | null
   member_count: number
 }
 
@@ -28,6 +29,7 @@ export default function ClubsPage() {
   const [clubs, setClubs] = useState<Club[]>([])
   const [universities, setUniversities] = useState<University[]>([])
   const [selectedUniversity, setSelectedUniversity] = useState<string>("all") // "all" = filtre yok
+  const [search, setSearch] = useState("") // İsim filtresi
   const [isLoading, setIsLoading] = useState(true)
 
   // 1. Filtre dropdown'ı için üniversiteleri çek
@@ -49,8 +51,18 @@ export default function ClubsPage() {
       setIsLoading(true)
       try {
         const uniId = selectedUniversity === "all" ? undefined : Number(selectedUniversity)
-        const clubsData = await api.getClubs(uniId)
-        setClubs(clubsData)
+        // API'dan ham listeyi çek; backend üniversite bilgisini her zaman dönmediği için client-side filtre uygula
+        const clubsData = await api.getClubs(undefined, search)
+        let filtered = clubsData
+        if (typeof uniId === "number" && !Number.isNaN(uniId)) {
+          const uniName = universities.find((u) => u.id === uniId)?.name?.toLowerCase()
+          filtered = clubsData.filter((c: any) => {
+            const idMatch = c.university_id === uniId
+            const nameMatch = uniName && c.university_name?.toLowerCase().includes(uniName)
+            return idMatch || nameMatch
+          })
+        }
+        setClubs(filtered)
       } catch (err) {
         console.error("Failed to fetch clubs:", err)
       } finally {
@@ -58,7 +70,7 @@ export default function ClubsPage() {
       }
     }
     fetchClubs()
-  }, [selectedUniversity]) 
+  }, [selectedUniversity, search, universities]) 
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -83,21 +95,32 @@ export default function ClubsPage() {
         {/* Filtreleme Kartı */}
         <Card className="mb-6">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <University className="h-5 w-5 text-muted-foreground" />
-              <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
-                <SelectTrigger className="w-full sm:w-[300px]">
-                  <SelectValue placeholder="Filter by university" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Universities</SelectItem>
-                  {universities.map((uni) => (
-                    <SelectItem key={uni.id} value={uni.id.toString()}>
-                      {uni.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <University className="h-5 w-5 text-muted-foreground shrink-0" />
+                <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
+                  <SelectTrigger className="w-full sm:w-[240px]">
+                    <SelectValue placeholder="Filter by university" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Universities</SelectItem>
+                    {universities.map((uni) => (
+                      <SelectItem key={uni.id} value={uni.id.toString()}>
+                        {uni.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="w-full sm:w-[280px]">
+                <input
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="Search by club name..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

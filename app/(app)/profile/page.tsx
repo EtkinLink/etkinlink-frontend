@@ -132,8 +132,19 @@ export default function ProfilePage() {
   
   const fetchMyClubs = async () => {
     try {
-      const clubs = await api.getMyClubs()
-      setMyClubs(clubs)
+      const [clubs, allOrgs] = await Promise.all([
+        api.getMyClubs(),
+        api.getClubs(), // owner olarak açtıklarını da yakalamak için
+      ])
+      const owned = user
+        ? allOrgs.filter((c: any) => c.owner_username === user.username)
+        : []
+      const mergedMap = new Map<number, any>()
+      ;[...(clubs || []), ...owned].forEach((c: any) => {
+        if (!c || typeof c.id !== "number") return
+        mergedMap.set(c.id, c)
+      })
+      setMyClubs(Array.from(mergedMap.values()))
     } catch (error) {
       console.error("Failed to fetch clubs:", error)
     }

@@ -5,6 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Calendar } from "lucide-react"
+import { Turnstile } from "@marsidev/react-turnstile"
 
 import { api } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
@@ -24,37 +25,33 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+  
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
-    // basit client-side validasyon
     if (!email || !password) {
       setError("Please enter email and password")
       return
     }
 
+    if (!turnstileToken) {
+      setError("Please verify you are human.")
+      return
+    }
+
     setIsLoading(true)
     try {
-      await api.loginWithPassword(email, password) // ✔ token'ı saklar
-      
-      // ✅ DÜZELTME: Beyaz ekran (race condition) sorununu çözmek için
-      // router.push() (soft navigation) yerine window.location.href (hard navigation) kullan.
-      // Bu, sayfanın tam olarak yenilenmesini ve AuthProvider'ın
-      // localStorage'daki yeni token'ı güvenle okumasını sağlar.
-      window.location.href = "/events"; 
-      
-      // router.push("/events") // <-- Eski (hatalı) kod
-
+      await api.loginWithPassword(email, password)
+      window.location.href = "/events" 
     } catch (err: any) {
       setError(err?.message || "Login failed")
-      // Hata durumunda isLoading'i false'a çek ki kullanıcı tekrar deneyebilsin
-      setIsLoading(false) 
+      setIsLoading(false)
+      // Hata durumunda token'ı sıfırla
+      setTurnstileToken(null)
     }
-    
-    // Not: Başarılı yönlendirmede (window.location.href)
-    // setIsLoading(false) demeye gerek yok çünkü sayfa zaten yenileniyor.
   }
 
   return (
@@ -64,7 +61,7 @@ export default function LoginPage() {
         <span className="text-2xl font-bold">EtkinLink</span>
       </div>
 
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
         <CardHeader>
           <CardTitle>Welcome back</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
@@ -81,6 +78,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
                 required
+                className="bg-white"
               />
             </div>
 
@@ -94,6 +92,29 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 required
+                className="bg-white"
+              />
+            </div>
+
+            {/* CLOUDFLARE TURNSTILE */}
+            <div className="flex justify-center py-2 min-h-[65px]">
+              <Turnstile 
+                // ÖNEMLİ DEĞİŞİKLİK: 1x...AA anahtarına geri döndük.
+                // Bu anahtar localhost'ta ASLA hata vermez.
+                siteKey="1x00000000000000000000AA" 
+                
+                // GÖRÜNÜM AYARI: Kutucuğu zorla BEYAZ yapar.
+                options={{ theme: 'light' }}
+                
+                onSuccess={(token) => {
+                  setTurnstileToken(token)
+                  setError("")
+                }}
+                
+                onError={() => {
+                  setTurnstileToken(null)
+                  setError("Doğrulama servisine bağlanılamadı.")
+                }}
               />
             </div>
 
@@ -103,7 +124,11 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all" 
+              disabled={isLoading || !turnstileToken}
+            >
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
 

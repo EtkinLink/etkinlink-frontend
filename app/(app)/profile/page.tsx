@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { api } from "@/lib/api-client"
 import Link from "next/link"
+import { useI18n, getDateLocale } from "@/lib/i18n"
 
 // Bileşenler
 import { Button } from "@/components/ui/button"
@@ -48,9 +49,9 @@ interface Club {
   member_count: number
 }
 
-function formatEventDate(iso: string | null, options: Intl.DateTimeFormatOptions) {
-  if (!iso) return "N/A"
-  return new Intl.DateTimeFormat("en-US", {
+function formatEventDate(iso: string | null, options: Intl.DateTimeFormatOptions, dateLocale: string) {
+  if (!iso) return dateLocale.startsWith("tr") ? "Yok" : "N/A"
+  return new Intl.DateTimeFormat(dateLocale, {
     ...options,
     timeZone: "UTC",
   }).format(new Date(iso))
@@ -60,6 +61,8 @@ function formatEventDate(iso: string | null, options: Intl.DateTimeFormatOptions
 export default function ProfilePage() {
   const { user, isLoading: authLoading, refreshUser } = useAuth()
   const router = useRouter()
+  const { t, locale } = useI18n()
+  const dateLocale = getDateLocale(locale)
 
   const [isMounted, setIsMounted] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -173,7 +176,7 @@ export default function ProfilePage() {
       }
       
     } catch (error: any) {
-      alert(error.message || "Failed to update profile")
+      alert(error.message || t("profile.error.updateFailed"))
     } finally {
       setIsSaving(false)
     }
@@ -184,7 +187,7 @@ export default function ProfilePage() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Loading...</p>
+          <p className="mt-4 text-muted-foreground">{t("common.loading")}</p>
         </div>
       </div>
     )
@@ -216,11 +219,11 @@ export default function ProfilePage() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Profile</CardTitle>
+                  <CardTitle>{t("profile.title")}</CardTitle>
                   {!isEditing ? (
                     <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
                       <Edit2 className="mr-2 h-4 w-4" />
-                      Edit
+                      {t("profile.edit")}
                     </Button>
                   ) : (
                     <div className="flex gap-2">
@@ -241,7 +244,7 @@ export default function ProfilePage() {
                       </Button>
                       <Button size="sm" onClick={handleSave} disabled={isSaving}>
                         <Save className="mr-2 h-4 w-4" />
-                        {isSaving ? "Saving..." : "Save"}
+                        {isSaving ? t("profile.saving") : t("profile.save")}
                       </Button>
                     </div>
                   )}
@@ -259,7 +262,7 @@ export default function ProfilePage() {
                 {isEditing ? (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="username">Username</Label>
+                      <Label htmlFor="username">{t("profile.username")}</Label>
                       <Input
                         id="username"
                         value={formData.username}
@@ -267,7 +270,7 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
+                      <Label htmlFor="name">{t("profile.fullName")}</Label>
                       <Input
                         id="name"
                         value={formData.name}
@@ -275,26 +278,26 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bio">About Me</Label>
+                      <Label htmlFor="bio">{t("profile.about")}</Label>
                       <Textarea
                         id="bio"
                         value={formData.bio}
                         onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                         rows={4}
-                        placeholder="Share a short bio..."
+                        placeholder={t("profile.aboutPlaceholder")}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="university">University</Label>
+                      <Label htmlFor="university">{t("profile.university")}</Label>
                       <Select
                         value={formData.university_id}
                         onValueChange={(value) => setFormData({ ...formData, university_id: value })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select university" />
+                          <SelectValue placeholder={t("profile.university")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">None</SelectItem> 
+                          <SelectItem value="none">{t("profile.none")}</SelectItem> 
                           {universities.map((uni) => (
                             <SelectItem key={uni.id} value={uni.id.toString()}>
                               {uni.name}
@@ -307,25 +310,25 @@ export default function ProfilePage() {
                 ) : (
                   <div className="space-y-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Username</p>
+                      <p className="text-sm text-muted-foreground">{t("profile.username")}</p>
                       <p className="font-medium">{user.username}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Full Name</p>
+                      <p className="text-sm text-muted-foreground">{t("profile.fullName")}</p>
                       <p className="font-medium">{user.name}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Email</p>
+                      <p className="text-sm text-muted-foreground">{t("profile.email")}</p>
                       <p className="font-medium">{user.email}</p>
                     </div>
                     {/* ✅ YENİ: Bio Gösterimi */}
                     <div>
-                      <p className="text-sm text-muted-foreground">About Me</p>
-                      <p className="text-sm">{user.bio || "No bio set yet."}</p>
+                      <p className="text-sm text-muted-foreground">{t("profile.about")}</p>
+                      <p className="text-sm">{user.bio || t("profile.aboutEmpty")}</p>
                     </div>
                     {user.university_name && (
                       <div>
-                        <p className="text-sm text-muted-foreground">University</p>
+                        <p className="text-sm text-muted-foreground">{t("profile.university")}</p>
                         <p className="font-medium">{user.university_name}</p>
                       </div>
                     )}
@@ -335,7 +338,7 @@ export default function ProfilePage() {
                 <Separator />
 
                 <div>
-                  <p className="mb-2 text-sm text-muted-foreground">Attendance Rate</p>
+                  <p className="mb-2 text-sm text-muted-foreground">{t("profile.attendanceRate")}</p>
                   <div className="flex items-center gap-2">
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
@@ -346,7 +349,7 @@ export default function ProfilePage() {
                       />
                     </div>
                     <span className="text-sm font-medium">
-                      {user.attendance_rate === -1 ? "N/A" : `${user.attendance_rate}%`}
+                      {user.attendance_rate === -1 ? t("profile.none") : `${user.attendance_rate}%`}
                     </span>
                   </div>
                 </div>
@@ -354,11 +357,11 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted p-4">
                   <div className="text-center">
                     <p className="text-2xl font-bold">{participatedEvents.length}</p>
-                    <p className="text-sm text-muted-foreground">Events Joined</p>
+                    <p className="text-sm text-muted-foreground">{t("profile.eventsJoined")}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold">{upcomingEvents.length}</p>
-                    <p className="text-sm text-muted-foreground">Upcoming</p>
+                    <p className="text-sm text-muted-foreground">{t("profile.upcoming")}</p>
                   </div>
                 </div>
               </CardContent>
@@ -366,12 +369,12 @@ export default function ProfilePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>My Badges ({myBadges.length})</CardTitle>
-                <CardDescription>Your collected achievements</CardDescription>
+                <CardTitle>{t("profile.badges.title", { count: myBadges.length })}</CardTitle>
+                <CardDescription>{t("profile.badges.description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {myBadges.length === 0 ? (
-                  <p className="text-center text-muted-foreground">No badges yet</p>
+                  <p className="text-center text-muted-foreground">{t("profile.badges.empty")}</p>
                 ) : (
                   <div className="space-y-4">
                     {myBadges.map((badge) => (
@@ -399,8 +402,8 @@ export default function ProfilePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>My Event Calendar</CardTitle>
-                <CardDescription>Keep track of upcoming and past events</CardDescription>
+                <CardTitle>{t("profile.calendar.title")}</CardTitle>
+                <CardDescription>{t("profile.calendar.description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <EventCalendar events={calendarEvents} />
@@ -409,12 +412,12 @@ export default function ProfilePage() {
             
             <Card>
               <CardHeader>
-                <CardTitle>My Clubs ({myClubs.length})</CardTitle>
-                <CardDescription>Clubs you are a member of</CardDescription>
+                <CardTitle>{t("profile.clubs.title", { count: myClubs.length })}</CardTitle>
+                <CardDescription>{t("profile.clubs.description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {myClubs.length === 0 ? (
-                  <p className="text-center text-muted-foreground">You haven&apos;t joined any clubs</p>
+                  <p className="text-center text-muted-foreground">{t("profile.clubs.empty")}</p>
                 ) : (
                   <div className="space-y-4">
                     {myClubs.map((club) => (
@@ -426,7 +429,7 @@ export default function ProfilePage() {
                                 <h3 className="font-semibold">{club.name}</h3>
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <Users className="h-4 w-4" />
-                                  {club.member_count} members
+                                  {t("clubs.members", { count: club.member_count })}
                                 </div>
                               </div>
                               <Badge variant={club.role === 'ADMIN' ? 'default' : 'outline'}>
@@ -444,12 +447,12 @@ export default function ProfilePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Upcoming Events ({upcomingEvents.length})</CardTitle>
-                <CardDescription>Events you&apos;re participating in</CardDescription>
+                <CardTitle>{t("profile.upcomingEvents.title", { count: upcomingEvents.length })}</CardTitle>
+                <CardDescription>{t("profile.upcomingEvents.description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {upcomingEvents.length === 0 ? (
-                  <p className="text-center text-muted-foreground">No upcoming events</p>
+                  <p className="text-center text-muted-foreground">{t("profile.upcomingEvents.empty")}</p>
                 ) : (
                   <div className="space-y-4">
                     {upcomingEvents.map((event) => (
@@ -473,7 +476,7 @@ export default function ProfilePage() {
                                         year: "numeric",
                                         hour: "2-digit",
                                         minute: "2-digit",
-                                      })}
+                                      }, dateLocale)}
                                     </span>
                                   </div>
                                   {event.location_name && (
@@ -496,12 +499,12 @@ export default function ProfilePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Past Events ({pastEvents.length})</CardTitle>
-                <CardDescription>Events you&apos;ve attended</CardDescription>
+                <CardTitle>{t("profile.pastEvents.title", { count: pastEvents.length })}</CardTitle>
+                <CardDescription>{t("profile.pastEvents.description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {pastEvents.length === 0 ? (
-                  <p className="text-center text-muted-foreground">No past events</p>
+                  <p className="text-center text-muted-foreground">{t("profile.pastEvents.empty")}</p>
                 ) : (
                   <div className="space-y-4">
                     {pastEvents.map((event) => (
@@ -519,15 +522,15 @@ export default function ProfilePage() {
                                 <h3 className="mb-2 font-semibold">{event.title}</h3>
                                 <div className="space-y-1 text-sm text-muted-foreground">
                                   <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>
+                                      <Calendar className="h-4 w-4" />
+                                      <span>
                                       {formatEventDate(event.starts_at, {
                                         month: "short",
                                         day: "numeric",
                                         year: "numeric",
-                                      })}
-                                    </span>
-                                  </div>
+                                      }, dateLocale)}
+                                      </span>
+                                    </div>
                                 </div>
                               </div>
                             </div>

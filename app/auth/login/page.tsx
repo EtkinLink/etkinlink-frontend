@@ -18,6 +18,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useI18n } from "@/lib/i18n"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -27,18 +29,19 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const { t } = useI18n()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
     if (!email || !password) {
-      setError("Please enter email and password")
+      setError(t("auth.error.missingFields"))
       return
     }
 
     if (!turnstileToken) {
-      setError("Please verify you are human.")
+      setError(t("auth.error.verifyHuman"))
       return
     }
 
@@ -47,29 +50,31 @@ export default function LoginPage() {
       await api.loginWithPassword(email, password)
       window.location.href = "/events" 
     } catch (err: any) {
-      setError(err?.message || "Login failed")
+      setError(err?.message || t("auth.error.loginFailed"))
       setIsLoading(false)
-      // Hata durumunda token'ı sıfırla
       setTurnstileToken(null)
     }
   }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
-      <div className="mb-8 flex items-center gap-2">
-        <Calendar className="h-8 w-8 text-indigo-600" />
-        <span className="text-2xl font-bold">EtkinLink</span>
+      <div className="mb-8 flex w-full max-w-md items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-8 w-8 text-indigo-600" />
+          <span className="text-2xl font-bold">EtkinLink</span>
+        </div>
+        <LanguageSwitcher className="w-full sm:w-[240px]" />
       </div>
 
       <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
         <CardHeader>
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
+          <CardTitle>{t("auth.welcomeBack")}</CardTitle>
+          <CardDescription>{t("auth.signInDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("auth.email")}</Label>
               <Input
                 id="email"
                 type="email"
@@ -83,7 +88,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("auth.password")}</Label>
               <Input
                 id="password"
                 type="password"
@@ -113,7 +118,7 @@ export default function LoginPage() {
                 
                 onError={() => {
                   setTurnstileToken(null)
-                  setError("Doğrulama servisine bağlanılamadı.")
+                  setError(t("auth.error.turnstile"))
                 }}
               />
             </div>
@@ -129,13 +134,13 @@ export default function LoginPage() {
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all" 
               disabled={isLoading || !turnstileToken}
             >
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? t("auth.signingIn") : t("auth.signIn")}
             </Button>
 
             <div className="mt-4 text-center text-sm">
-              Don’t have an account?{" "}
+              {t("auth.noAccount")}{" "}
               <Link href="/auth/sign-up" className="text-indigo-600 hover:underline">
-                Sign up
+                {t("auth.signUpCta")}
               </Link>
             </div>
           </form>

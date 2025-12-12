@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { api } from "@/lib/api-client"
 import Link from "next/link"
+import { useI18n, getDateLocale } from "@/lib/i18n"
 import {
   Calendar,
   MapPin,
@@ -59,8 +60,8 @@ interface Event {
 }
 
 // Date formatter
-function formatEventDate(iso: string) {
-  return new Intl.DateTimeFormat("en-US", {
+function formatEventDate(iso: string, dateLocale: string) {
+  return new Intl.DateTimeFormat(dateLocale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -74,6 +75,8 @@ export default function EventsPage() {
   const PER_PAGE = 6
   const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
+  const { t, locale } = useI18n()
+  const dateLocale = getDateLocale(locale)
 
   const [events, setEvents] = useState<Event[]>([])
   const [eventTypes, setEventTypes] = useState<any[]>([])
@@ -192,7 +195,7 @@ export default function EventsPage() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-          <p className="mt-4 text-muted-foreground">Loading...</p>
+          <p className="mt-4 text-muted-foreground">{t("common.loading")}</p>
         </div>
       </div>
     )
@@ -208,13 +211,13 @@ export default function EventsPage() {
         {/* Header Section */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Discover Events</h1>
-            <p className="text-muted-foreground">Find and join amazing campus events</p>
+            <h1 className="text-3xl font-bold">{t("events.title")}</h1>
+            <p className="text-muted-foreground">{t("events.subtitle")}</p>
           </div>
           <Button asChild>
             <Link href="/events/create">
               <Plus className="mr-2 h-4 w-4" />
-              Create Event
+              {t("events.create")}
             </Link>
           </Button>
         </div>
@@ -228,11 +231,11 @@ export default function EventsPage() {
           <TabsList>
             <TabsTrigger value="all">
               <Search className="mr-2 h-4 w-4" />
-              All Events
+              {t("events.tabs.all")}
             </TabsTrigger>
             <TabsTrigger value="nearby" disabled={!locationReady}>
               <Map className="mr-2 h-4 w-4" />
-              Nearby Events {!userLocation && locationReady && "(Enable location)"}
+              {t("events.tabs.nearby")} {!userLocation && locationReady && t("events.tabs.enableLocation")}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -252,12 +255,12 @@ export default function EventsPage() {
             {isLoading ? (
               <div className="text-center py-12">
                 <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-                <p className="mt-4 text-muted-foreground">Loading events...</p>
+                <p className="mt-4 text-muted-foreground">{t("events.loading")}</p>
               </div>
             ) : events.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground">
-                  No events found matching your criteria.
+                  {t("events.empty")}
                 </CardContent>
               </Card>
             ) : (
@@ -271,13 +274,13 @@ export default function EventsPage() {
                             <div className="flex flex-wrap gap-2">
                               <Badge variant="secondary">{ev.event_type}</Badge>
                               {ev.join_method === "APPLICATION_ONLY" && (
-                                <Badge variant="outline">Application Required</Badge>
+                                <Badge variant="outline">{t("events.card.applicationRequired")}</Badge>
                               )}
                             </div>
                             {ev.price > 0 ? (
                               <Badge variant="outline" className="border-green-600 text-green-600">${ev.price}</Badge>
                             ) : (
-                              <Badge variant="outline" className="border-blue-600 text-blue-600">Free</Badge>
+                              <Badge variant="outline" className="border-blue-600 text-blue-600">{t("common.free")}</Badge>
                             )}
                           </div>
                           <CardTitle className="line-clamp-1">{ev.title}</CardTitle>
@@ -286,7 +289,7 @@ export default function EventsPage() {
                         <CardContent className="text-sm text-muted-foreground space-y-2">
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 shrink-0" />
-                            <span>{formatEventDate(ev.starts_at)}</span>
+                            <span>{formatEventDate(ev.starts_at, dateLocale)}</span>
                           </div>
                           {ev.location_name && (
                             <div className="flex items-center gap-2">
@@ -296,7 +299,7 @@ export default function EventsPage() {
                           )}
                           <div className="flex items-center gap-2">
                             <Users className="h-4 w-4 shrink-0" />
-                            <span>{ev.participant_count} participants</span>
+                            <span>{t("common.participants", { count: ev.participant_count })}</span>
                           </div>
                         </CardContent>
                       </Card>
@@ -310,15 +313,15 @@ export default function EventsPage() {
                     disabled={page === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
-                    Previous
+                    {t("common.previous")}
                   </Button>
-                  <span className="text-sm text-muted-foreground">Page {page}</span>
+                  <span className="text-sm text-muted-foreground">{t("common.page", { page })}</span>
                   <Button
                     variant="outline"
                     disabled={events.length < PER_PAGE}
                     onClick={() => setPage((p) => p + 1)}
                   >
-                    Next
+                    {t("common.next")}
                   </Button>
                 </div>
               </>
@@ -334,7 +337,7 @@ export default function EventsPage() {
             {/* Filter Card */}
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Filters</CardTitle>
+                <CardTitle className="text-lg">{t("common.filters")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSearch} className="space-y-4">
@@ -342,7 +345,7 @@ export default function EventsPage() {
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       className="pl-9"
-                      placeholder="Search by name..."
+                      placeholder={t("events.filters.searchPlaceholder")}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -351,10 +354,10 @@ export default function EventsPage() {
                   <Select value={selectedType} onValueChange={(val) => setSelectedType(val)}>
                     <SelectTrigger className="w-full">
                       <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Event Type" />
+                      <SelectValue placeholder={t("events.filters.eventType")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="all">{t("events.filters.allTypes")}</SelectItem>
                       {eventTypes.map((t) => (
                         <SelectItem key={t.id} value={t.code}>
                           {t.code}
@@ -365,20 +368,20 @@ export default function EventsPage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground">From</span>
+                      <span className="text-xs text-muted-foreground">{t("common.from")}</span>
                       <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground">To</span>
+                      <span className="text-xs text-muted-foreground">{t("common.to")}</span>
                       <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
                     </div>
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="flex-1">Apply Filters</Button>
+                    <Button type="submit" className="flex-1">{t("common.applyFilters")}</Button>
                     {hasActiveFilters && (
                       <Button type="button" variant="outline" onClick={clearFilters}>
-                        Clear
+                        {t("common.clear")}
                       </Button>
                     )}
                   </div>
@@ -391,7 +394,7 @@ export default function EventsPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <MapPin className="h-5 w-5" /> 
-                  Event Map
+                  {t("events.map.title")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0 sm:p-6 sm:pt-0">

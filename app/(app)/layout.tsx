@@ -4,12 +4,15 @@ import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Calendar, Plus, LogOut, Users, User } from "lucide-react"
+import { Calendar, LogOut, Users, User } from "lucide-react"
+import { useI18n } from "@/lib/i18n"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 // Bu layout, (app) grubundaki tüm sayfaları sarar
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isLoading } = useAuth()
   const router = useRouter()
+  const { t } = useI18n()
 
   const handleLogout = () => {
     logout()
@@ -30,35 +33,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span className="text-xl font-bold">EtkinLink</span>
           </Link>
           
-          {/* Navigasyon Linkleri (Sadece 'user' varken veya yüklenmiyoken göster) */}
-          {!isLoading && user && (
-            <nav className="flex items-center gap-1 sm:gap-4">
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/events">Events</Link>
-              </Button>
-              
-              {/* ✅ YENİ: KULÜPLER LİNKİ EKLENDİ */}
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/clubs">
-                  <Users className="mr-0 sm:mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Clubs</span>
-                </Link>
-              </Button>
-
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/profile">
-                  <User className="mr-0 sm:mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Profile</span>
-                </Link>
-              </Button>
-
-
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="mr-0 sm:mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Sign out</span>
-              </Button>
-            </nav>
-          )}
+          <div className="flex items-center gap-3">
+            {!isLoading && user && (
+              <nav className="flex items-center gap-1 sm:gap-4">
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/events">{t("nav.events")}</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/clubs">
+                    <Users className="mr-0 sm:mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">{t("nav.clubs")}</span>
+                  </Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/profile">
+                    <User className="mr-0 sm:mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">{t("nav.profile")}</span>
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <LogOut className="mr-0 sm:mr-2 h-4 w-4" />
+                  <span className="hidden sm:inline">{t("nav.signOut")}</span>
+                </Button>
+              </nav>
+            )}
+            <LanguageSwitcher className="w-[220px]" />
+          </div>
         </div>
       </header>
       

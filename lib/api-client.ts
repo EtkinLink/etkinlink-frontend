@@ -1,7 +1,10 @@
 "use client"
 
 // Yeni backend base adresi
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://165.22.91.113:5000"
+const API_BASE_URL =
+  typeof window === "undefined"
+    ? process.env.NEXT_PUBLIC_API_URL || "/api"
+    : "/api"
 
 // Token saklama anahtarı
 const TOKEN_KEY = "access_token"

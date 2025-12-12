@@ -6,8 +6,8 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// ✅ ArrowLeft kaldırıldı
 import { Users, Plus, University } from "lucide-react"
+import { useI18n } from "@/lib/i18n"
 
 // API'dan dönen kulüp listesi tipi
 interface Club {
@@ -31,6 +31,7 @@ export default function ClubsPage() {
   const [selectedUniversity, setSelectedUniversity] = useState<string>("all") // "all" = filtre yok
   const [search, setSearch] = useState("") // İsim filtresi
   const [isLoading, setIsLoading] = useState(true)
+  const { t } = useI18n()
 
   // 1. Filtre dropdown'ı için üniversiteleri çek
   useEffect(() => {
@@ -79,15 +80,14 @@ export default function ClubsPage() {
         {/* Sayfa Başlığı ve Navigasyon */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            {/* ✅ Geri Dön Butonu SİLİNDİ */}
-            <h1 className="text-3xl font-bold">Discover Clubs</h1>
-            <p className="text-muted-foreground">Find and join student clubs at your university</p>
+            <h1 className="text-3xl font-bold">{t("clubs.title")}</h1>
+            <p className="text-muted-foreground">{t("clubs.subtitle")}</p>
           </div>
           {/* TODO: /clubs/create sayfası oluşturulunca bu buton işlevsel hale gelir */}
           <Button asChild>
             <Link href="/clubs/create">
               <Plus className="mr-2 h-4 w-4" />
-              Create a Club
+              {t("clubs.create")}
             </Link>
           </Button>
         </div>
@@ -100,10 +100,10 @@ export default function ClubsPage() {
                 <University className="h-5 w-5 text-muted-foreground shrink-0" />
                 <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
                   <SelectTrigger className="w-full sm:w-[240px]">
-                    <SelectValue placeholder="Filter by university" />
+                    <SelectValue placeholder={t("clubs.filter.placeholder")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Universities</SelectItem>
+                    <SelectItem value="all">{t("clubs.filter.all")}</SelectItem>
                     {universities.map((uni) => (
                       <SelectItem key={uni.id} value={uni.id.toString()}>
                         {uni.name}
@@ -116,7 +116,7 @@ export default function ClubsPage() {
               <div className="w-full sm:w-[280px]">
                 <input
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Search by club name..."
+                  placeholder={t("clubs.searchPlaceholder")}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -129,12 +129,12 @@ export default function ClubsPage() {
         {isLoading ? (
           <div className="text-center py-12">
             <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-            <p className="mt-4 text-muted-foreground">Loading clubs...</p>
+            <p className="mt-4 text-muted-foreground">{t("clubs.loading")}</p>
           </div>
         ) : clubs.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
-              No clubs found.
+              {t("clubs.empty")}
             </CardContent>
           </Card>
         ) : (
@@ -148,11 +148,11 @@ export default function ClubsPage() {
                   </CardHeader>
                   <CardContent className="flex flex-col flex-grow justify-between">
                     <p className="mb-4 text-sm text-muted-foreground line-clamp-2">
-                      {club.description || "No description provided."}
+                      {club.description || t("clubs.noDescription")}
                     </p>
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Users className="h-4 w-4" />
-                      <span>{club.member_count} members</span>
+                      <span>{t("clubs.members", { count: club.member_count })}</span>
                     </div>
                   </CardContent>
                 </Card>

@@ -9,7 +9,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 // ✅ YENİ: İkonlar eklendi
-import { ArrowLeft, Users, Calendar, University, User, Info, UserPlus, UserMinus, FileText, Clock, Check, Settings } from "lucide-react"
+import { ArrowLeft, Users, Calendar, University, User, Info, UserPlus, UserMinus, FileText, Clock, Check, Settings, Edit2, X } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // --- ARAYÜZLER (TYPES) ---
 
@@ -58,6 +69,7 @@ export default function ClubDetailPage() {
   const [isActionLoading, setIsActionLoading] = useState(false) // Bütün butonlar için
   const [isMounted, setIsMounted] = useState(false)
   const [membershipStatus, setMembershipStatus] = useState<ApplicationStatus>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // 1. Hydration ve URL'den ID'yi çekme
   useEffect(() => {
@@ -161,9 +173,9 @@ export default function ClubDetailPage() {
   }
 
   const handleApply = async () => {
-    if (!user) { window.location.href = "/auth/login"; return } 
+    if (!user) { window.location.href = "/auth/login"; return }
     if (!clubId) return
-    
+
     setIsActionLoading(true)
     try {
       // Not: "why_me" (neden ben?) alanı için bir modal/popup açılabilir
@@ -180,6 +192,18 @@ export default function ClubDetailPage() {
       }
     } finally {
       setIsActionLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!clubId) return
+    setIsDeleting(true)
+    try {
+      await api.deleteClub(clubId)
+      window.location.href = "/clubs"
+    } catch (error: any) {
+      alert(error.message || "Failed to delete club")
+      setIsDeleting(false)
     }
   }
 
@@ -201,12 +225,46 @@ export default function ClubDetailPage() {
     if (membershipStatus === 'ADMIN') {
       // TODO: `/clubs/[id]/manage` (Yönetim) sayfası oluşturulmalı
       return (
-        <Button asChild className="w-full" variant="secondary">
-          <a href={`/clubs/${clubId}/manage`}> 
-            <Settings className="mr-2 h-4 w-4" />
-            Manage Club
-          </a>
-        </Button>
+        <div className="space-y-3">
+          <Button asChild className="w-full" variant="secondary">
+            <a href={`/clubs/${clubId}/manage`}>
+              <Settings className="mr-2 h-4 w-4" />
+              Manage Club
+            </a>
+          </Button>
+
+          <div className="flex gap-2">
+            <Button asChild variant="outline" className="flex-1">
+              <Link href={`/clubs/${clubId}/edit`}>
+                <Edit2 className="mr-2 h-4 w-4" />
+                Edit
+              </Link>
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50">
+                  <X className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Club</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this club? This action cannot be undone and will remove all associated data.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
       )
     }
 

@@ -2,13 +2,13 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { api } from "@/lib/api-client"              // ✅ TEK KAYNAK
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Calendar } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { LanguageSwitcher } from "@/components/language-switcher"
@@ -17,20 +17,22 @@ export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
-  const [username, setUsername] = useState("")
+  const [gender, setGender] = useState<"MALE" | "FEMALE">("MALE")
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
   const { t } = useI18n()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setSuccess(false)
 
     setIsLoading(true)
     try {
-      await api.signup({ email, password, name, username })   // ✅ merkezi client
-      router.push("/auth/login")
+      await api.signup({ email, password, name, gender })
+      setSuccess(true)
+      // Backend sends verification email to the user's email
     } catch (err: any) {
       setError(err?.message || t("auth.error.signupFailed"))
     } finally {
@@ -60,22 +62,39 @@ export default function SignupPage() {
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="username">{t("auth.username")}</Label>
-              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
-              <p className="text-xs text-muted-foreground">{t("auth.usernameHint")}</p>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="email">{t("auth.email")}</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <p className="text-xs text-muted-foreground">Use your university email (e.g., @itu.edu.tr)</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">{t("auth.password")}</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
+            <div className="space-y-2">
+              <Label>Gender</Label>
+              <RadioGroup value={gender} onValueChange={(value) => setGender(value as "MALE" | "FEMALE")}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="MALE" id="male" />
+                  <Label htmlFor="male" className="font-normal cursor-pointer">Male</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="FEMALE" id="female" />
+                  <Label htmlFor="female" className="font-normal cursor-pointer">Female</Label>
+                </div>
+              </RadioGroup>
+            </div>
 
             {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            {success && (
+              <div className="rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-800">
+                <p className="font-semibold mb-1">Registration successful!</p>
+                <p>Please check your email <strong>{email}</strong> to verify your account.</p>
+                <p className="mt-2 text-xs">The verification link will expire in 30 minutes.</p>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isLoading || success}>
               {isLoading ? t("auth.signingUp") : t("auth.signUp")}
             </Button>
 

@@ -149,14 +149,14 @@ export const api = {
     setToken(token)
     return data
   },
-  signup: (payload: { email: string; password: string; name: string; username?: string }) =>
+  signup: (payload: { email: string; password: string; name: string; gender: "MALE" | "FEMALE" }) =>
     fetchAPI<{ message: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({
         email: payload.email,
         password: payload.password,
         name: payload.name,
-        username: payload.username,
+        gender: payload.gender,
       }),
     }, false),
   logout: () => setToken(null),
@@ -202,20 +202,46 @@ export const api = {
   getAllBadges: async () => [],
   getMyClubs: async () => {
     try {
-      const resp = await fetchAPI<any>("/users/me/organizations")
-      const mapped = mapPaginatedResponse(resp).items ?? []
-      const items = Array.isArray(mapped) ? mapped : []
-      return items
-        .filter((item: any) => (item.relation || item.role) !== "APPLIED")
-        .map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          role: item.role || item.relation || null,
-          member_count: item.member_count ?? null,
-        }))
+      const userId = getUserIdFromToken()
+      if (!userId) return []
+
+      // Get all organizations
+      const allOrgsResp = await fetchAPI<any>("/organizations")
+      const allOrgs = mapPaginatedResponse(allOrgsResp).items ?? []
+
+      // For each organization, fetch details to get members
+      const myClubs: any[] = []
+
+      for (const org of allOrgs) {
+        try {
+          const orgData = await fetchAPI<any>(`/organizations/${org.id}`)
+          const members = Array.isArray(orgData.members) ? orgData.members : []
+
+          // Check if current user is a member OR owner
+          let myMembership = members.find((m: any) => m.id === userId)
+
+          // If not in members list, check if user is the owner
+          if (!myMembership && orgData.owner_user_id === userId) {
+            myMembership = { id: userId, role: 'ADMIN' }
+          }
+
+          if (myMembership) {
+            myClubs.push({
+              id: orgData.id,
+              name: orgData.name,
+              description: orgData.description,
+              role: myMembership.role || 'ADMIN',
+              member_count: members.length,
+            })
+          }
+        } catch (err) {
+          continue
+        }
+      }
+
+      return myClubs
     } catch (err) {
-      console.error("getMyClubs failed; backend SQL hatası olabilir:", err)
+      console.error("Failed to fetch clubs:", err)
       return []
     }
   },
@@ -237,28 +263,93 @@ export const api = {
     const endpoint = `/events${query ? '?' + query : ''}`
     return fetchAPI(endpoint).then(mapPaginatedResponse)
   },
+  getMyEvents: async (opts?: { userId?: number; username?: string; perPage?: number }) => {
+    // Use /users/me/events endpoint which returns user's participated events
+    const params: Record<string, any> = {
+      page: 1,
+      per_page: opts?.perPage ?? 50,
+    }
+    const query = new URLSearchParams(params as any).toString()
+    const resp = await fetchAPI(`/users/me/events${query ? '?' + query : ''}`)
+    const items = mapPaginatedResponse(resp).items ?? []
+    return items.map((item: any) => ({
+      ...item,
+      id: item.event_id ?? item.id,
+      title: item.event_title ?? item.title,
+      participation_status: item.participation_status ?? item.status ?? null,
+    }))
+  },
+
+  getMyOwnedEvents: async (perPage = 50) => {
+    // Get events where current user is the owner
+    const userId = getUserIdFromToken()
+    if (!userId) return []
+
+    const params: Record<string, any> = {
+      owner_id: userId,
+      page: 1,
+      per_page: perPage,
+    }
+    const query = new URLSearchParams(params as any).toString()
+    const resp = await fetchAPI(`/events${query ? '?' + query : ''}`)
+    return mapPaginatedResponse(resp).items ?? []
+  },
   
   getEvent: (id: number) => fetchAPI(`/events/${id}`),
   
-  // ✅ DÜZELTME: Trailing slash tutarlılığı - sondaki / YOK
   createEvent: (data: any) => {
-    const payload = {
-        ...data,
-        starts_at: data.starts_at ? formatToDBDatetime(data.starts_at) : undefined,
-        ends_at: data.ends_at ? formatToDBDatetime(data.ends_at) : undefined,
-    };
+    const payload: Record<string, any> = {
+      title: data.title,
+      explanation: data.explanation,
+      type_id: data.type_id ?? data.typeId,
+      owner_type: data.owner_type ?? "USER",
+      price: data.price ?? 0,
+      starts_at: data.starts_at ? formatToDBDatetime(data.starts_at) : undefined,
+      ends_at: data.ends_at ? formatToDBDatetime(data.ends_at) : undefined,
+      location_name: data.location_name ?? data.locationName,
+      has_register: data.has_register ?? false,
+      user_limit: data.user_limit ?? data.userLimit,
+      is_participants_private: data.is_participants_private ?? false,
+      only_girls: data.only_girls ?? false,
+    }
+
+    // Optional fields
+    if (data.organization_id) payload.organization_id = data.organization_id
+    if (data.photo_url) payload.photo_url = data.photo_url
+    if (data.latitude !== undefined) payload.latitude = data.latitude
+    if (data.longitude !== undefined) payload.longitude = data.longitude
 
     return fetchAPI("/events", {
       method: "POST",
       body: JSON.stringify(payload),
-    });
+    })
   },
-  
-  updateEvent: (id: number, data: any) =>
-    fetchAPI(`/events/${id}`, {
+
+  updateEvent: (id: number, data: any) => {
+    const payload: Record<string, any> = {}
+
+    // Only include fields that are provided
+    if (data.title !== undefined) payload.title = data.title
+    if (data.explanation !== undefined) payload.explanation = data.explanation
+    if (data.type_id !== undefined) payload.type_id = data.type_id
+    if (data.price !== undefined) payload.price = data.price
+    if (data.starts_at) payload.starts_at = formatToDBDatetime(data.starts_at)
+    if (data.ends_at) payload.ends_at = formatToDBDatetime(data.ends_at)
+    if (data.location_name !== undefined) payload.location_name = data.location_name
+    if (data.photo_url !== undefined) payload.photo_url = data.photo_url
+    if (data.status !== undefined) payload.status = data.status
+    if (data.user_limit !== undefined) payload.user_limit = data.user_limit
+    if (data.latitude !== undefined) payload.latitude = data.latitude
+    if (data.longitude !== undefined) payload.longitude = data.longitude
+    if (data.has_register !== undefined) payload.has_register = data.has_register
+    if (data.is_participants_private !== undefined) payload.is_participants_private = data.is_participants_private
+    if (data.only_girls !== undefined) payload.only_girls = data.only_girls
+
+    return fetchAPI(`/events/${id}`, {
       method: "PUT",
-      body: JSON.stringify(data),
-    }),
+      body: JSON.stringify(payload),
+    })
+  },
   deleteEvent: (id: number) =>
     fetchAPI(`/events/${id}`, { method: "DELETE" }),
   updateEventStatus: async () => ({ message: "Not supported" }),
@@ -273,15 +364,21 @@ export const api = {
   },
 
   // ---------- Participation ----------
-  joinEvent: (eventId: number) =>
-    fetchAPI(`/events/${eventId}/register`, { method: "POST" }),
+  joinEvent: (eventId: number, hasRegister?: boolean) => {
+    // If event requires application (has_register=true), use apply endpoint
+    // Otherwise use direct register endpoint
+    const endpoint = hasRegister
+      ? `/events/${eventId}/apply`
+      : `/events/${eventId}/register`
+    return fetchAPI(endpoint, { method: "POST" })
+  },
   leaveEvent: async (eventId: number) => {
     const userId = getUserIdFromToken()
     if (!userId) throw new APIError("User id missing from token", 400)
     return fetchAPI(`/events/${eventId}/participants/${userId}`, { method: "DELETE" })
   },
-    
-  // ---------- Attendance ----------
+
+  // ---------- Check-in / Attendance ----------
   getAttendance: async (eventId: number) => {
     const resp = await fetchAPI(`/events/${eventId}/attendance`)
     return Array.isArray(resp) ? resp : resp?.attendance ?? []
@@ -290,6 +387,11 @@ export const api = {
     fetchAPI(`/events/${eventId}/attendance/${userId}`, {
       method: "POST",
       body: JSON.stringify({ status }),
+    }),
+  checkInEvent: async (eventId: number, ticketCode: string) =>
+    fetchAPI(`/events/${eventId}/check-in`, {
+      method: "POST",
+      body: JSON.stringify({ ticket_code: ticketCode }),
     }),
 
   // ---------- Event Applications ----------
@@ -347,19 +449,19 @@ export const api = {
   
   getClub: async (id: number) => {
     const data = await fetchAPI<any>(`/organizations/${id}`)
-    const joinMethod: "OPEN" | "APPLICATION_ONLY" =
-      data?.join_method === "OPEN" ? "OPEN" : "APPLICATION_ONLY"
     return {
       id: data.id,
       name: data.name,
       description: data.description,
       university_name: data.university_name ?? "",
-      owner_user_id: null,
+      owner_user_id: data.owner_user_id ?? null,
       owner_username: data.owner_username,
       member_count: Array.isArray(data.members) ? data.members.length : 0,
-      join_method: joinMethod,
+      join_method: data.join_method ?? "OPEN",
       status: data.status,
       photo_url: data.photo_url,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
       events: Array.isArray(data.events) ? data.events.map((ev: any) => ({
           id: ev.id, title: ev.title, starts_at: ev.starts_at, ends_at: ev.ends_at,
           status: ev.status, event_type: ev.event_type,
@@ -372,10 +474,19 @@ export const api = {
   
   // ✅ DÜZELTME: Trailing slash tutarlılığı - sondaki / YOK
   createClub: (data: { name: string; description?: string }) =>
-    fetchAPI("/organizations", { 
-      method: "POST", 
-      body: JSON.stringify(data) 
+    fetchAPI("/organizations", {
+      method: "POST",
+      body: JSON.stringify(data)
     }),
+
+  updateClub: (clubId: number, data: { name?: string; description?: string }) =>
+    fetchAPI(`/organizations/${clubId}`, {
+      method: "PUT",
+      body: JSON.stringify(data)
+    }),
+
+  deleteClub: (clubId: number) =>
+    fetchAPI(`/organizations/${clubId}`, { method: "DELETE" }),
   
   joinClub: async (clubId: number, motivation?: string) =>
     fetchAPI(`/organizations/${clubId}/apply`, { 

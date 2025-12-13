@@ -36,17 +36,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (auth) {
     headers.set('Authorization', auth)
   }
-  headers.set('Content-Type', 'application/json')
 
   try {
-    const body = await request.json()
+    // Allow empty bodies (e.g., POST /register) without throwing
+    const rawBody = await request.text()
+    const body = rawBody.trim().length ? rawBody : undefined
+    // Sadece gerçekten body varsa JSON content-type ekle
+    if (body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json')
+    }
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body),
+      body,
     })
-    const data = await response.json()
-    return NextResponse.json(data, { status: response.status })
+    const data = await response.json().catch(() => null)
+    return NextResponse.json(data ?? null, { status: response.status })
   } catch (error) {
     return NextResponse.json({ error: 'Proxy error' }, { status: 500 })
   }

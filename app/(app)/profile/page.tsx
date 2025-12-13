@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { api } from "@/lib/api-client"
 import Link from "next/link"
+import { useI18n } from "@/lib/i18n"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import {
   Calendar,
@@ -54,6 +56,7 @@ interface Club {
 export default function ProfilePage() {
   const { user, isLoading: authLoading, refreshUser } = useAuth()
   const router = useRouter()
+  const { t } = useI18n()
 
   const [isMounted, setIsMounted] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -64,6 +67,7 @@ export default function ProfilePage() {
     name: "",
     university_id: "",
   })
+  const [universities, setUniversities] = useState<any[]>([])
 
   const [myEvents, setMyEvents] = useState<UserEvent[]>([])
   const [myOwnedEvents, setMyOwnedEvents] = useState<any[]>([])
@@ -75,23 +79,6 @@ export default function ProfilePage() {
   useEffect(() => {
     setIsMounted(true)
   }, [])
-
-  useEffect(() => {
-    if (!isMounted) return
-    if (!authLoading && !user) {
-      router.push("/auth/login")
-    } else if (user) {
-      setFormData({
-        username: user.username,
-        name: user.name,
-        university_id: (user as any).university_id?.toString() || "none",
-      })
-
-      fetchMyEvents()
-      fetchMyOwnedEvents()
-      fetchMyClubs()
-    }
-  }, [user, authLoading, isMounted, router])
 
   const fetchMyEvents = async () => {
     setIsLoadingEvents(true)
@@ -132,6 +119,34 @@ export default function ProfilePage() {
     }
   }
 
+  const fetchUniversities = useCallback(async () => {
+    try {
+      const unis = await api.getUniversities()
+      setUniversities(unis || [])
+    } catch (error) {
+      console.error("Failed to fetch universities:", error)
+      setUniversities([])
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isMounted) return
+    if (!authLoading && !user) {
+      router.push("/auth/login")
+    } else if (user) {
+      setFormData({
+        username: user.username,
+        name: user.name,
+        university_id: (user as any).university_id?.toString() || "none",
+      })
+
+      fetchMyEvents()
+      fetchMyOwnedEvents()
+      fetchMyClubs()
+      fetchUniversities()
+    }
+  }, [user, authLoading, isMounted, router, fetchUniversities])
+
   const handleDeleteEvent = async (eventId: number) => {
     if (!confirm("Are you sure you want to delete this event?")) return
 
@@ -157,17 +172,17 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      await api.updateProfile({
+      const payload: any = {
         username: formData.username,
         name: formData.name,
       }
-      
+
       if (formData.university_id && formData.university_id !== "none") {
         payload.university_id = Number.parseInt(formData.university_id)
       } else {
         payload.university_id = null
       }
-      
+
       await api.updateProfile(payload)
       setIsEditing(false)
 

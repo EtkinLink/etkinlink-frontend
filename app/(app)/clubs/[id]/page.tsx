@@ -221,49 +221,21 @@ export default function ClubDetailPage() {
     }
     
     // 2. Durum: Kullanıcı ADMIN (veya Sahip)
-    // ✅ DÜZELTME: Backend'den 'ADMIN' rolü geliyorsa Yönet butonunu göster
+    // ✅ DÜZELTME: Backend'den 'ADMIN' rolü geliyorsa Yönet ve Edit butonlarını göster
     if (membershipStatus === 'ADMIN') {
-      // TODO: `/clubs/[id]/manage` (Yönetim) sayfası oluşturulmalı
       return (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Button asChild className="w-full" variant="secondary">
-            <a href={`/clubs/${clubId}/manage`}>
+            <a href={`/clubs/${clubId}/manage`}> 
               <Settings className="mr-2 h-4 w-4" />
               Manage Club
             </a>
           </Button>
-
-          <div className="flex gap-2">
-            <Button asChild variant="outline" className="flex-1">
-              <Link href={`/clubs/${clubId}/edit`}>
-                <Edit2 className="mr-2 h-4 w-4" />
-                Edit
-              </Link>
-            </Button>
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50">
-                  <X className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Club</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete this club? This action cannot be undone and will remove all associated data.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          <Button asChild className="w-full" variant="outline">
+            <a href={`/clubs/${clubId}/edit`}> 
+               Edit Club
+            </a>
+          </Button>
         </div>
       )
     }

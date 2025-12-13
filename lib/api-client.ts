@@ -1,7 +1,12 @@
 "use client"
 
-// Next.js API route proxy kullan (same-origin, CORS yok)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
+// Yeni backend base adresi
+const API_BASE_URL =
+  typeof window === "undefined"
+    ? process.env.NEXT_PUBLIC_API_URL || "/api"
+    : "/api"
+
+// Token saklama anahtarı
 const TOKEN_KEY = "access_token"
 
 export class APIError extends Error {
@@ -16,6 +21,7 @@ export class APIError extends Error {
   }
 }
 
+// Global 401 handler
 let onUnauthorized: ((resp?: Response) => void) | null = null
 export function setUnauthorizedHandler(fn: ((resp?: Response) => void) | null) {
   onUnauthorized = fn
@@ -23,17 +29,12 @@ export function setUnauthorizedHandler(fn: ((resp?: Response) => void) | null) {
 
 // --- Token Helpers ---
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null
-  const token = localStorage.getItem(TOKEN_KEY)
-  return token
+  return typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null
 }
 export function setToken(token: string | null) {
   if (typeof window === "undefined") return
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token)
-  } else {
-    localStorage.removeItem(TOKEN_KEY)
-  }
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  else localStorage.removeItem(TOKEN_KEY)
 }
 
 function decodeJwtPayload(token: string | null) {
@@ -52,50 +53,27 @@ function getUserIdFromToken(): number | null {
   return payload?.userId ?? null
 }
 
-function formatToDBDatetime(isoString: string | undefined): string | undefined {
-  if (!isoString) return undefined
-  return isoString.replace('T', ' ').replace('Z', '')
-}
-
 // --- Ana Fetch Fonksiyonu ---
 async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, withAuth = true): Promise<T> {
-  // URL'de trailing slash sorunu olmasın diye, endpoint'ı normalize et
-  const normalizedEndpoint = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint
-  const url = `${API_BASE_URL}${normalizedEndpoint}`
+  const url = `${API_BASE_URL}${endpoint}`
 
-  // 🔧 Plain object kullan, Headers object yerine
-  const headers: Record<string, string> = {}
-  
-  // options'dan gelen headers'ı kopyala
-  if (options.headers) {
-    if (options.headers instanceof Headers) {
-      options.headers.forEach((value, key) => {
-        headers[key] = value
-      })
-    } else {
-      Object.assign(headers, options.headers as Record<string, string>)
-    }
-  }
-  
-  // Content-Type ekle (varsa)
-  if (options.body && !(options.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json'
+  const headers: HeadersInit = {
+    ...(options.body && !(options.body instanceof FormData) && !new Headers(options.headers || {}).has("Content-Type")
+      ? { "Content-Type": "application/json" }
+      : {}),
+    ...options.headers,
   }
 
-  // Authorization header ekle
   const token = withAuth ? getToken() : null
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
   }
 
-  // exclude headers from options, add our complete headers
-  const { headers: _, ...restOptions } = options
-  const fetchOptions: RequestInit = {
-    ...restOptions,
-    headers,
-  }
+  const response = await fetch(url, { ...options, headers })
 
-  const response = await fetch(url, fetchOptions)
+  if (response.status === 401 && onUnauthorized) {
+    try { onUnauthorized(response) } catch {}
+  }
 
   if (!response.ok) {
     const fallback = { error: { message: "An error occurred" } }
@@ -105,16 +83,6 @@ async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, wi
       payload?.message ||
       (Array.isArray(payload?.errors) ? payload.errors.join(", ") : undefined) ||
       `HTTP ${response.status}`
-
-    if (response.status === 401 && onUnauthorized) {
-      const lower = (msg || "").toLowerCase()
-      const looksLikeTokenError =
-        lower.includes("token") || lower.includes("expired") || lower.includes("invalid") || lower.includes("jwt")
-      if (looksLikeTokenError) {
-        try { onUnauthorized(response) } catch {}
-      }
-    }
-
     throw new APIError(msg, response.status, payload?.error?.code, payload?.error?.details)
   }
 
@@ -123,6 +91,7 @@ async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, wi
   return response.json() as Promise<T>
 }
 
+// Helper: paginated response'u UI'nin beklediği formata çevir
 function mapPaginatedResponse(resp: any) {
   if (resp && typeof resp === "object" && "data" in resp) {
     return {
@@ -137,16 +106,12 @@ function mapPaginatedResponse(resp: any) {
 export const api = {
   // ---------- Auth ----------
   loginWithPassword: async (email: string, password: string) => {
-    const data = await fetchAPI<any>(
+    const data = await fetchAPI<{ access_token: string }>(
       "/auth/login",
       { method: "POST", body: JSON.stringify({ email, password }) },
       false
     )
-    const token = data?.access_token || data?.token
-    if (!token) {
-      throw new Error('Login response token içermiyor')
-    }
-    setToken(token)
+    setToken(data.access_token)
     return data
   },
   signup: (payload: { email: string; password: string; name: string; gender: "MALE" | "FEMALE" }) =>
@@ -192,6 +157,7 @@ export const api = {
   getUserEvents: async (userId: number) => {
     const resp = await fetchAPI<any>(`/users/${userId}/events`)
     const items = mapPaginatedResponse(resp).items ?? []
+    // Backend bazen "event_id" döndürüyor; frontend "id" bekliyor.
     return items.map((item: any) => ({
       ...item,
       id: item.id ?? item.event_id ?? item.eventId,
@@ -241,126 +207,53 @@ export const api = {
 
       return myClubs
     } catch (err) {
-      console.error("Failed to fetch clubs:", err)
+      console.error("getMyClubs failed; backend SQL hatası olabilir:", err)
+      // Backend UNION collation hatası yüzünden UI'yi kırmamak için boş liste dön.
       return []
     }
   },
+  // Eski adıyla alias (gerekirse kullanıcıya özel listeye dönmek için)
   getMyOrganizations: async () => api.getMyClubs(),
 
   // ---------- Dictionaries ----------
   getUniversities: () => fetchAPI("/universities"),
   getEventTypes: async () => {
     const resp = await fetchAPI("/event_types")
+    // Backend farklı şekillerde dönebiliyor, hepsini yakala
     if (Array.isArray(resp)) return resp
     if (resp && Array.isArray((resp as any).data)) return (resp as any).data
+    if (resp && Array.isArray((resp as any).items)) return (resp as any).items
+    if (resp && Array.isArray((resp as any).event_types)) return (resp as any).event_types
     return mapPaginatedResponse(resp).items ?? []
   },
   
   // ---------- Events ----------
-  // ✅ DÜZELTME: Trailing slash tutarlılığı - sondaki / YOK
   getEvents: (params?: Record<string, any>) => {
-    const query = new URLSearchParams(params as any).toString()
-    const endpoint = `/events${query ? '?' + query : ''}`
-    return fetchAPI(endpoint).then(mapPaginatedResponse)
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ""
+    return fetchAPI(`/events${query}`).then(mapPaginatedResponse)
   },
-  getMyEvents: async (opts?: { userId?: number; username?: string; perPage?: number }) => {
-    // Use /users/me/events endpoint which returns user's participated events
-    const params: Record<string, any> = {
-      page: 1,
-      per_page: opts?.perPage ?? 50,
-    }
-    const query = new URLSearchParams(params as any).toString()
-    const resp = await fetchAPI(`/users/me/events${query ? '?' + query : ''}`)
-    const items = mapPaginatedResponse(resp).items ?? []
-    return items.map((item: any) => ({
-      ...item,
-      id: item.event_id ?? item.id,
-      title: item.event_title ?? item.title,
-      participation_status: item.participation_status ?? item.status ?? null,
-    }))
-  },
-
-  getMyOwnedEvents: async (perPage = 50) => {
-    // Get events where current user is the owner
-    const userId = getUserIdFromToken()
-    if (!userId) return []
-
-    const params: Record<string, any> = {
-      owner_id: userId,
-      page: 1,
-      per_page: perPage,
-    }
-    const query = new URLSearchParams(params as any).toString()
-    const resp = await fetchAPI(`/events${query ? '?' + query : ''}`)
-    return mapPaginatedResponse(resp).items ?? []
-  },
-  
   getEvent: (id: number) => fetchAPI(`/events/${id}`),
-  
-  createEvent: (data: any) => {
-    const payload: Record<string, any> = {
-      title: data.title,
-      explanation: data.explanation,
-      type_id: data.type_id ?? data.typeId,
-      owner_type: data.owner_type ?? "USER",
-      price: data.price ?? 0,
-      starts_at: data.starts_at ? formatToDBDatetime(data.starts_at) : undefined,
-      ends_at: data.ends_at ? formatToDBDatetime(data.ends_at) : undefined,
-      location_name: data.location_name ?? data.locationName,
-      has_register: data.has_register ?? false,
-      user_limit: data.user_limit ?? data.userLimit,
-      is_participants_private: data.is_participants_private ?? false,
-      only_girls: data.only_girls ?? false,
-    }
-
-    // Optional fields
-    if (data.organization_id) payload.organization_id = data.organization_id
-    if (data.photo_url) payload.photo_url = data.photo_url
-    if (data.latitude !== undefined) payload.latitude = data.latitude
-    if (data.longitude !== undefined) payload.longitude = data.longitude
-
-    return fetchAPI("/events", {
+  createEvent: (data: any) =>
+    fetchAPI("/events", {
       method: "POST",
-      body: JSON.stringify(payload),
-    })
-  },
-
-  updateEvent: (id: number, data: any) => {
-    const payload: Record<string, any> = {}
-
-    // Only include fields that are provided
-    if (data.title !== undefined) payload.title = data.title
-    if (data.explanation !== undefined) payload.explanation = data.explanation
-    if (data.type_id !== undefined) payload.type_id = data.type_id
-    if (data.price !== undefined) payload.price = data.price
-    if (data.starts_at) payload.starts_at = formatToDBDatetime(data.starts_at)
-    if (data.ends_at) payload.ends_at = formatToDBDatetime(data.ends_at)
-    if (data.location_name !== undefined) payload.location_name = data.location_name
-    if (data.photo_url !== undefined) payload.photo_url = data.photo_url
-    if (data.status !== undefined) payload.status = data.status
-    if (data.user_limit !== undefined) payload.user_limit = data.user_limit
-    if (data.latitude !== undefined) payload.latitude = data.latitude
-    if (data.longitude !== undefined) payload.longitude = data.longitude
-    if (data.has_register !== undefined) payload.has_register = data.has_register
-    if (data.is_participants_private !== undefined) payload.is_participants_private = data.is_participants_private
-    if (data.only_girls !== undefined) payload.only_girls = data.only_girls
-
-    return fetchAPI(`/events/${id}`, {
+      body: JSON.stringify(data),
+    }),
+  updateEvent: (id: number, data: any) =>
+    fetchAPI(`/events/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     })
   },
   deleteEvent: (id: number) =>
     fetchAPI(`/events/${id}`, { method: "DELETE" }),
-  updateEventStatus: async () => ({ message: "Not supported" }),
-
+  updateEventStatus: async () => ({ message: "Not supported in current backend" }),
   filterEvents: (params?: Record<string, any>) => {
-    const query = new URLSearchParams(params as any).toString()
-    return fetchAPI(`/events/filter${query ? '?' + query : ''}`).then(mapPaginatedResponse)
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ""
+    return fetchAPI(`/events/filter${query}`).then(mapPaginatedResponse)
   },
   getNearbyEvents: (lat: number, lng: number, radiusKm = 10, params?: Record<string, any>) => {
-    const query = new URLSearchParams(params as any).toString()
-    return fetchAPI(`/events${query ? '?' + query : ''}`).then(mapPaginatedResponse)
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ""
+    return fetchAPI(`/events${query}`).then(mapPaginatedResponse)
   },
 
   // ---------- Participation ----------
@@ -381,11 +274,12 @@ export const api = {
   // ---------- Check-in / Attendance ----------
   getAttendance: async (eventId: number) => {
     const resp = await fetchAPI(`/events/${eventId}/attendance`)
+    // Backend may return either an array or an object with an "attendance" field
     return Array.isArray(resp) ? resp : resp?.attendance ?? []
   },
   setAttendance: async (eventId: number, userId: number, status: "ATTENDED" | "NO_SHOW") =>
     fetchAPI(`/events/${eventId}/attendance/${userId}`, {
-      method: "POST",
+      method: "PUT",
       body: JSON.stringify({ status }),
     }),
   checkInEvent: async (eventId: number, ticketCode: string) =>
@@ -417,118 +311,129 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rating, comment }),
     }),
-  
-  // ---------- Reports ----------
-  createReport: (eventId: number, reason: string) =>
-    fetchAPI(`/events/${eventId}/report`, {
-      method: "POST",
-      body: JSON.stringify({ reason }),
-    }),
-  getReports: (params?: Record<string, any>) => {
-    const query = new URLSearchParams(params as any).toString()
-    return fetchAPI(`/events/my-reports${query ? '?' + query : ''}`).then(mapPaginatedResponse)
-  },
 
-  // ---------- Organizations ----------
-  // ✅ DÜZELTME: Trailing slash tutarlılığı
-  getClubs: async (universityId?: number, search?: string) => {
-    const resp = await fetchAPI("/organizations")
+  // ---------- Organizations (Clubs placeholder) ----------
+  /**
+   * getClubs - Backend destekli filtreleme ile clubs çek
+   * @param params: {
+   *   university_id?: number,
+   *   q?: string,
+   *   status?: string,
+   *   owner_username?: string,
+   *   page?: number,
+   *   per_page?: number
+   * }
+   */
+  getClubs: async (params?: {
+    university_id?: number,
+    q?: string,
+    status?: string,
+    owner_username?: string,
+    page?: number,
+    per_page?: number
+    search?: string
+  }) => {
+    const query = params && Object.keys(params).length > 0
+      ? `?${new URLSearchParams(Object.entries(params).reduce((acc, [k, v]) => {
+          if (v !== undefined && v !== null && v !== "") acc[k] = String(v)
+          return acc
+        }, {} as Record<string, string>))}`
+      : ""
+    const resp = await fetchAPI(`/organizations${query}`)
     const items = mapPaginatedResponse(resp).items ?? []
-    let filtered = Array.isArray(items) ? items : []
-    return filtered.map((item: any) => ({
+    return Array.isArray(items) ? items.map((item: any) => ({
       id: item.id,
       name: item.name,
       description: item.description,
       university_name: item.university_name ?? "",
+      university_id: item.university_id ?? null,
       member_count: item.member_count ?? 0,
       status: item.status,
       photo_url: item.photo_url,
       owner_username: item.owner_username,
-    })) ?? []
+    })) : []
   },
-  
   getClub: async (id: number) => {
     const data = await fetchAPI<any>(`/organizations/${id}`)
     return {
       id: data.id,
       name: data.name,
       description: data.description,
-      university_name: data.university_name ?? "",
-      owner_user_id: data.owner_user_id ?? null,
+      owner_user_id: null,
       owner_username: data.owner_username,
+      university_name: "",
       member_count: Array.isArray(data.members) ? data.members.length : 0,
       join_method: data.join_method ?? "OPEN",
       status: data.status,
       photo_url: data.photo_url,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      events: Array.isArray(data.events) ? data.events.map((ev: any) => ({
-          id: ev.id, title: ev.title, starts_at: ev.starts_at, ends_at: ev.ends_at,
-          status: ev.status, event_type: ev.event_type,
-        })) : [],
-      members: Array.isArray(data.members) ? data.members.map((m: any) => ({
-          id: m.id, username: m.username, role: m.role, joined_at: m.joined_at, name: m.name,
-        })) : [],
+      events: Array.isArray(data.events)
+        ? data.events.map((ev: any) => ({
+            id: ev.id,
+            title: ev.title,
+            starts_at: ev.starts_at,
+            ends_at: ev.ends_at,
+            status: ev.status,
+            event_type: ev.event_type,
+          }))
+        : [],
+      members: Array.isArray(data.members)
+        ? data.members.map((m: any) => ({
+            id: m.id,
+            username: m.username,
+            role: m.role,
+            joined_at: m.joined_at,
+            name: m.name,
+          }))
+        : [],
     }
   },
-  
-  // ✅ DÜZELTME: Trailing slash tutarlılığı - sondaki / YOK
   createClub: (data: { name: string; description?: string }) =>
-    fetchAPI("/organizations", {
-      method: "POST",
-      body: JSON.stringify(data)
-    }),
-
-  updateClub: (clubId: number, data: { name?: string; description?: string }) =>
-    fetchAPI(`/organizations/${clubId}`, {
-      method: "PUT",
-      body: JSON.stringify(data)
-    }),
-
-  deleteClub: (clubId: number) =>
-    fetchAPI(`/organizations/${clubId}`, { method: "DELETE" }),
-  
-  joinClub: async (clubId: number, motivation?: string) =>
-    fetchAPI(`/organizations/${clubId}/apply`, { 
-      method: "POST", 
-      body: JSON.stringify({ motivation: motivation || "" }) 
-    }),
-    
+    fetchAPI("/organizations", { method: "POST", body: JSON.stringify(data) }),
+  joinClub: async (clubId: number) =>
+    fetchAPI(`/organizations/${clubId}/apply`, { method: "POST", body: JSON.stringify({ motivation: "" }) }),
   leaveClub: async (clubId: number) => {
     const userId = getUserIdFromToken()
     if (!userId) throw new APIError("User id missing from token", 400)
     return fetchAPI(`/organizations/${clubId}/members/${userId}`, { method: "DELETE" })
   },
-  
   getMyClubApplicationStatus: async (clubId: number) => {
     const tokenUserId = getUserIdFromToken()
     let status: "MEMBER" | "ADMIN" | "PENDING" | null = null
 
+    // 1) Üyelik kontrolü (detay endpoint)
     try {
       const data = await fetchAPI<any>(`/organizations/${clubId}`)
       const members = Array.isArray(data?.members) ? data.members : []
       if (tokenUserId) {
         const me = members.find((m: any) => m.id === tokenUserId)
-        if (me) { status = me.role === "ADMIN" ? "ADMIN" : "MEMBER" }
+        if (me) {
+          status = me.role === "ADMIN" ? "ADMIN" : "MEMBER"
+        }
       }
-    } catch {/* ignore */}
-    
-    if (!status) {
-      try {
-        const resp = await fetchAPI<any>("/users/me/organizations")
-        const entry = mapPaginatedResponse(resp).items?.find((o: any) => o.id === clubId)
-        if (entry && entry.relation === "APPLIED") { status = "PENDING" }
-      } catch {/* ignore */}
+    } catch {
+      // ignore, try next check
     }
+
+    if (status) return { status }
+
+    // 2) Başvuru kontrolü (kullanıcının org listesi; relation=APPLIED)
+    try {
+      const resp = await fetchAPI<any>("/users/me/organizations")
+      const entry = mapPaginatedResponse(resp).items?.find((o: any) => o.id === clubId)
+      if (entry && entry.relation === "APPLIED") {
+        status = "PENDING"
+      }
+    } catch {
+      // ignore
+    }
+
     return { status }
   },
-  
   createClubApplication: (clubId: number, whyMe?: string) =>
     fetchAPI(`/organizations/${clubId}/apply`, {
       method: "POST",
       body: JSON.stringify({ motivation: whyMe }),
     }),
-    
   getClubApplications: async (clubId: number) => {
     const resp = await fetchAPI(`/organizations/${clubId}/applications`)
     return mapPaginatedResponse(resp).items?.map((item: any) => ({
@@ -536,7 +441,6 @@ export const api = {
       why_me: item.why_me ?? item.motivation ?? null,
     }))
   },
-  
   patchClubApplication: (clubId: number, applicationId: number, status: "APPROVED" | "REJECTED") => {
     const path =
       status === "APPROVED"
@@ -544,18 +448,46 @@ export const api = {
         : `/organizations/${clubId}/applications/${applicationId}/reject`
     return fetchAPI(path, { method: "POST" })
   },
-  
   getClubMembers: async (clubId: number) => {
     const data = await fetchAPI<any>(`/organizations/${clubId}`)
     return data.members ?? []
   },
-  
   rejectClubApplication: (clubId: number, applicationId: number) =>
     fetchAPI(`/organizations/${clubId}/applications/${applicationId}/reject`, {
       method: "POST",
     }),
+  
+  // ✅ YENİ: Organization güncelleme
+  updateClub: (clubId: number, data: { description?: string; photo_url?: string; status?: string }) =>
+    fetchAPI(`/organizations/${clubId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  
+  // ✅ YENİ: Organization silme
+  deleteClub: (clubId: number) =>
+    fetchAPI(`/organizations/${clubId}`, { method: "DELETE" }),
+  
+  // ✅ YENİ: Attendance işlemi (status güncelleme)
+  setEventAttendanceStatus: (eventId: number, userId: number, status: "ATTENDED" | "NO_SHOW") =>
+    fetchAPI(`/events/${eventId}/attendance/${userId}`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
+  
+  // ✅ YENİ: Tüm applications'ı getir
+  getAllApplications: async () => {
+    const resp = await fetchAPI("/applications")
+    return mapPaginatedResponse(resp).items ?? []
+  },
+  
+  // ✅ YENİ: Tüm participants'ı getir
+  getAllParticipants: async () => {
+    const resp = await fetchAPI("/participants")
+    return mapPaginatedResponse(resp).items ?? []
+  },
     
-  // ---------- Notifications ----------
+  // ---------- Notifications (not available) ----------
   getNotifications: async () => [],
   markNotificationsRead: async () => ({ message: "Not supported" }),
 }

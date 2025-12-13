@@ -2,155 +2,139 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
-import { api, APIError } from "@/lib/api-client"
 import Link from "next/link"
-
-// Components
+import { useAuth } from "@/lib/auth-context"
+import { useI18n } from "@/lib/i18n"
+import { api, APIError } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowLeft, AlertCircle, Trash2 } from "lucide-react"
 
-// Icons
-import { ArrowLeft, AlertCircle } from "lucide-react"
-
-// Form data type
 interface ClubFormData {
   name: string
   description: string
 }
 
-export default function EditClubPage() {
-  const { user, isLoading: authLoading } = useAuth()
+export default function EditClubPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
-
+  const { user, isLoading: authLoading } = useAuth()
+  const { t } = useI18n()
   const [clubId, setClubId] = useState<number | null>(null)
+
+  const [club, setClub] = useState<any>(null)
   const [formData, setFormData] = useState<ClubFormData>({
     name: "",
     description: "",
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
 
-  // 1. Mount state
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
-  // 2. Get club ID from URL
   useEffect(() => {
-    if (!isMounted) return
+    if (!isMounted || authLoading) return
 
-    try {
-      const pathSegments = window.location.pathname.split('/')
-      const idIndex = pathSegments.findIndex(seg => seg === 'clubs') + 1
-      const id = Number(pathSegments[idIndex])
-
-      if (id && !isNaN(id)) {
-        setClubId(id)
-      } else {
-        console.error("Invalid Club ID from URL")
-        router.push("/clubs")
-      }
-    } catch (e) {
-      console.error(e)
-      router.push("/clubs")
-    }
-  }, [isMounted, router])
-
-  // 3. Auth check and fetch club data
-  useEffect(() => {
-    if (!isMounted || !clubId) return
-
-    if (!authLoading && !user) {
-      router.replace("/auth/login")
-      return
-    }
-
-    const fetchClubData = async () => {
-      setIsLoading(true)
+    const fetchClub = async () => {
       try {
-        const clubData = await api.getClub(clubId)
+        const { id } = await params
+        const cid = Number(id)
+        setClubId(cid)
 
-        // Check if user is admin/owner
-        if (clubData.owner_username !== user?.username) {
-          // TODO: Also check if user is ADMIN member
-          setError("You don't have permission to edit this club")
-          setTimeout(() => router.push(`/clubs/${clubId}`), 2000)
-          return
-        }
-
+        const clubData = await api.getClub(cid)
+        setClub(clubData)
         setFormData({
-          name: clubData.name,
+          name: clubData.name || "",
           description: clubData.description || "",
         })
       } catch (err) {
-        console.error("Failed to fetch club data:", err)
-        setError("Failed to load club data")
-      } finally {
-        setIsLoading(false)
+        setError(t("clubs.edit.error.loadFailed"))
+        setTimeout(() => router.push("/clubs"), 2000)
       }
     }
 
     if (user) {
-      fetchClubData()
+      fetchClub()
+    } else if (!authLoading) {
+      router.replace("/auth/login")
     }
+  }, [isMounted, user, authLoading, router, params])
 
-  }, [isMounted, clubId, user, authLoading, router])
-
-  // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Submit form
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!clubId) return
-
     setIsSubmitting(true)
     setError(null)
-
-    if (!formData.name) {
-      setError("Club name is required.")
-      setIsSubmitting(false)
-      return
-    }
+    setSuccess(null)
 
     try {
+      if (!formData.name.trim()) {
+        throw new Error(t("clubs.edit.error.nameMissing"))
+      }
+
+      if (!clubId) throw new Error(t("clubs.edit.error.idMissing"))
+
       await api.updateClub(clubId, {
-        name: formData.name,
         description: formData.description,
       })
 
-      // Success! Redirect to club detail page
-      router.push(`/clubs/${clubId}`)
-
+      setSuccess(t("clubs.edit.success.updated"))
+      setTimeout(() => router.push(`/clubs/${clubId}`), 1500)
     } catch (err) {
       if (err instanceof APIError) {
         setError(err.message)
       } else {
-        setError("An unexpected error occurred. Please try again.")
+        setError(t("clubs.edit.error.updateFailed"))
       }
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // Loading state
-  if (!isMounted || authLoading || isLoading) {
+  const handleDelete = async () => {
+    if (!confirm(t("clubs.edit.confirm.delete"))) {
+      return
+    }
+
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      if (!clubId) throw new Error(t("clubs.edit.error.idMissing"))
+
+      await api.deleteClub(clubId)
+
+      setSuccess(t("clubs.edit.success.deleted"))
+      setTimeout(() => router.push("/clubs"), 1500)
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.message)
+      } else {
+        setError(t("clubs.edit.error.deleteFailed"))
+      }
+      setIsDeleting(false)
+    }
+  }
+
+  if (!isMounted || authLoading || !club) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Loading...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">{t("common.loading")}</p>
         </div>
       </div>
     )
@@ -159,54 +143,20 @@ export default function EditClubPage() {
   return (
     <div className="min-h-screen bg-muted/30">
       <div className="container py-8">
+        <Button asChild variant="ghost" className="mb-6">
+          <Link href={`/clubs/${clubId}`}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Geri Dön
+          </Link>
+        </Button>
 
-        <div className="mb-6 max-w-2xl mx-auto">
-          <Button asChild variant="ghost">
-            <Link href={`/clubs/${clubId}`}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Club
-            </Link>
-          </Button>
-        </div>
-
-        {/* Main Form Card */}
-        <Card className="max-w-2xl mx-auto">
+        <Card className="mx-auto max-w-2xl">
           <CardHeader>
-            <CardTitle>Edit Club</CardTitle>
-            <CardDescription>
-              Update your club&apos;s information
-            </CardDescription>
+            <CardTitle>Kulübü Düzenle</CardTitle>
+            <CardDescription>{club.name}</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-
-              {/* Club Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name">Club Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="e.g. ITU AI/ML Club"
-                  required
-                />
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  placeholder="What is this club about?"
-                  rows={4}
-                />
-              </div>
-
-              {/* Error Message */}
+            <form onSubmit={handleUpdate} className="space-y-6">
               {error && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
@@ -214,23 +164,57 @@ export default function EditClubPage() {
                 </Alert>
               )}
 
-              {/* Submit Button */}
-              <div className="flex justify-end gap-2">
+              {success && (
+                <Alert className="border-green-200 bg-green-50">
+                  <AlertDescription className="text-green-800">{success}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="name">Kulüp Adı (Düzenlenemez)</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">Kulüp adı değiştirilemez</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Açıklama</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  placeholder="Kulübü açıklayın..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1"
+                >
+                  {isSubmitting ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
+                </Button>
+
                 <Button
                   type="button"
-                  variant="outline"
-                  onClick={() => router.push(`/clubs/${clubId}`)}
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
                 >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save Changes"}
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {isDeleting ? "Siliniyor..." : "Sil"}
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
-
       </div>
     </div>
   )

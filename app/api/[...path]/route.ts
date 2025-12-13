@@ -19,10 +19,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       method: 'GET',
       headers,
     })
+    
+    // Response status'u direkt dön
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      return NextResponse.json(errorData, { status: response.status })
+    }
+    
     const data = await response.json()
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy error' }, { status: 500 })
+    console.error('Proxy GET error:', error)
+    return NextResponse.json({ error: 'Proxy error', details: String(error) }, { status: 500 })
   }
 }
 
@@ -50,10 +58,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       headers,
       body,
     })
-    const data = await response.json().catch(() => null)
-    return NextResponse.json(data ?? null, { status: response.status })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      return NextResponse.json(errorData, { status: response.status })
+    }
+    
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy error' }, { status: 500 })
+    console.error('Proxy POST error:', error)
+    return NextResponse.json({ error: 'Proxy error', details: String(error) }, { status: 500 })
   }
 }
 
@@ -75,10 +90,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       headers,
       body: JSON.stringify(body),
     })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      return NextResponse.json(errorData, { status: response.status })
+    }
+    
     const data = await response.json()
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy error' }, { status: 500 })
+    console.error('Proxy PUT error:', error)
+    return NextResponse.json({ error: 'Proxy error', details: String(error) }, { status: 500 })
   }
 }
 
@@ -97,10 +119,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       method: 'DELETE',
       headers,
     })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      return NextResponse.json(errorData, { status: response.status })
+    }
+    
     const data = await response.json()
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy error' }, { status: 500 })
+    console.error('Proxy DELETE error:', error)
+    return NextResponse.json({ error: 'Proxy error', details: String(error) }, { status: 500 })
   }
 }
 

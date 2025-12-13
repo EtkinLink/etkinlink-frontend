@@ -62,8 +62,7 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     username: "",
     name: "",
-    bio: "",
-    phone: "",
+    university_id: "",
   })
 
   const [myEvents, setMyEvents] = useState<UserEvent[]>([])
@@ -84,9 +83,8 @@ export default function ProfilePage() {
     } else if (user) {
       setFormData({
         username: user.username,
-        name: user.name || "",
-        bio: user.bio || "",
-        phone: (user as any)?.phone || "",
+        name: user.name,
+        university_id: (user as any).university_id?.toString() || "none",
       })
 
       fetchMyEvents()
@@ -162,9 +160,15 @@ export default function ProfilePage() {
       await api.updateProfile({
         username: formData.username,
         name: formData.name,
-        bio: formData.bio,
-        phone: formData.phone,
-      })
+      }
+      
+      if (formData.university_id && formData.university_id !== "none") {
+        payload.university_id = Number.parseInt(formData.university_id)
+      } else {
+        payload.university_id = null
+      }
+      
+      await api.updateProfile(payload)
       setIsEditing(false)
 
       if (refreshUser) {
@@ -223,9 +227,8 @@ export default function ProfilePage() {
                           setIsEditing(false)
                           setFormData({
                             username: user.username,
-                            name: user.name || "",
-                            bio: user.bio || "",
-                            phone: (user as any)?.phone || "",
+                            name: user.name,
+                            university_id: user.university_id?.toString() || "none",
                           })
                         }}
                       >
@@ -274,22 +277,23 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bio">Bio</Label>
-                      <Input
-                        id="bio"
-                        value={formData.bio}
-                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                        placeholder="Tell us about yourself"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="+90 555 123 4567"
-                      />
+                      <Label htmlFor="university">{t("profile.university")}</Label>
+                      <Select
+                        value={formData.university_id}
+                        onValueChange={(value) => setFormData({ ...formData, university_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t("profile.university")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">{t("profile.none")}</SelectItem> 
+                          {universities.map((uni) => (
+                            <SelectItem key={uni.id} value={uni.id.toString()}>
+                              {uni.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 ) : (
@@ -298,18 +302,6 @@ export default function ProfilePage() {
                       <p className="text-sm text-muted-foreground">Email</p>
                       <p className="font-medium">{user.email}</p>
                     </div>
-                    {user.bio && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Bio</p>
-                        <p className="font-medium">{user.bio}</p>
-                      </div>
-                    )}
-                    {(user as any)?.phone && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Phone</p>
-                        <p className="font-medium">{(user as any).phone}</p>
-                      </div>
-                    )}
                     {user.university_name && (
                       <div>
                         <p className="text-sm text-muted-foreground">University</p>

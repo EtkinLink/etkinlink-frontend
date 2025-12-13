@@ -150,7 +150,15 @@ export default function CreateEventPage() {
       
     } catch (error: any) {
       if (error instanceof APIError) {
-        setError(error.message)
+        // 401 ise token geçersiz, giriş sayfasına yönlendir
+        if (error.status === 401) {
+          setError("Your session has expired. Please log in again.")
+          setTimeout(() => {
+            window.location.href = "/auth/login"
+          }, 2000)
+        } else {
+          setError(error.message)
+        }
       } else {
         setError(error.message || "Failed to create event")
       }

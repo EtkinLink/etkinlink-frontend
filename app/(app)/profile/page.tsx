@@ -72,7 +72,6 @@ export default function ProfilePage() {
     username: "",
     name: "",
     university_id: "",
-    bio: "",
   })
   
   const [universities, setUniversities] = useState<any[]>([])
@@ -93,8 +92,7 @@ export default function ProfilePage() {
       setFormData({
         username: user.username,
         name: user.name,
-        university_id: (user as any).university_id?.toString() || "none", 
-        bio: (user as any).bio ?? "",
+        university_id: (user as any).university_id?.toString() || "none",
       })
       
       fetchUniversities()
@@ -159,7 +157,6 @@ export default function ProfilePage() {
       const payload: any = {
         username: formData.username,
         name: formData.name,
-        bio: formData.bio.trim() ? formData.bio : null,
       }
       
       if (formData.university_id && formData.university_id !== "none") {
@@ -236,7 +233,6 @@ export default function ProfilePage() {
                             username: user.username,
                             name: user.name,
                             university_id: user.university_id?.toString() || "none",
-                            bio: user.bio ?? "",
                           })
                         }}
                       >
@@ -278,16 +274,6 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bio">{t("profile.about")}</Label>
-                      <Textarea
-                        id="bio"
-                        value={formData.bio}
-                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                        rows={4}
-                        placeholder={t("profile.aboutPlaceholder")}
-                      />
-                    </div>
-                    <div className="space-y-2">
                       <Label htmlFor="university">{t("profile.university")}</Label>
                       <Select
                         value={formData.university_id}
@@ -320,11 +306,6 @@ export default function ProfilePage() {
                     <div>
                       <p className="text-sm text-muted-foreground">{t("profile.email")}</p>
                       <p className="font-medium">{user.email}</p>
-                    </div>
-                    {/* ✅ YENİ: Bio Gösterimi */}
-                    <div>
-                      <p className="text-sm text-muted-foreground">{t("profile.about")}</p>
-                      <p className="text-sm">{user.bio || t("profile.aboutEmpty")}</p>
                     </div>
                     {user.university_name && (
                       <div>

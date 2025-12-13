@@ -79,10 +79,14 @@ export default function ApplicationsPage() {
   const fetchApplications = useCallback(async () => {
     setIsLoading(true) 
     try {
+      console.log("Fetching applications for eventId:", eventId)
       const [applicationsData, eventData] = await Promise.all([
         api.getApplications(eventId!),
         api.getEvent(eventId!)
       ])
+      console.log("Applications data received:", applicationsData)
+      console.log("Event data received:", eventData)
+      
       setApplications(
         applicationsData.map((app: Application) => ({
           ...app,
@@ -99,10 +103,14 @@ export default function ApplicationsPage() {
       )
     } catch (error: any) {
       console.error("Failed to fetch applications:", error)
+      console.error("Error status:", error.status)
+      console.error("Error message:", error.message)
       if (error.status === 403) {
         alert("Only event owners/club admins can view applications")
         // ✅ DÜZELTME: router.push -> window.location.href
         window.location.href = `/events/${eventId}`
+      } else {
+        alert(`Error loading applications: ${error.message || 'Unknown error'}`)
       }
     } finally {
       setIsLoading(false)

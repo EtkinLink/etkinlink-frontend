@@ -197,16 +197,22 @@ export default function ClubDetailPage() {
     }
     
     // 2. Durum: Kullanıcı ADMIN (veya Sahip)
-    // ✅ DÜZELTME: Backend'den 'ADMIN' rolü geliyorsa Yönet butonunu göster
+    // ✅ DÜZELTME: Backend'den 'ADMIN' rolü geliyorsa Yönet ve Edit butonlarını göster
     if (membershipStatus === 'ADMIN') {
-      // TODO: `/clubs/[id]/manage` (Yönetim) sayfası oluşturulmalı
       return (
-        <Button asChild className="w-full" variant="secondary">
-          <a href={`/clubs/${clubId}/manage`}> 
-            <Settings className="mr-2 h-4 w-4" />
-            Manage Club
-          </a>
-        </Button>
+        <div className="space-y-2">
+          <Button asChild className="w-full" variant="secondary">
+            <a href={`/clubs/${clubId}/manage`}> 
+              <Settings className="mr-2 h-4 w-4" />
+              Manage Club
+            </a>
+          </Button>
+          <Button asChild className="w-full" variant="outline">
+            <a href={`/clubs/${clubId}/edit`}> 
+               Edit Club
+            </a>
+          </Button>
+        </div>
       )
     }
 

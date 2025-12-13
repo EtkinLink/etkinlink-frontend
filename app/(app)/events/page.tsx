@@ -141,24 +141,20 @@ export default function EventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true)
     try {
-      // En yeni/gelecek etkinlikleri öne almak için starts_at desc; sayfa başına 4 kayıt
+      // Backend parametreleri: page, per_page, sort, order, type_id, q, starts_at_from, starts_at_to
       const params: any = { page, per_page: PER_PAGE, sort: "starts_at", order: "desc" }
 
       if (viewMode === "nearby" && userLocation) {
         const response = await api.getNearbyEvents(userLocation.lat, userLocation.lng, 10, params)
         setEvents(response.items || [])
       } else {
-        const filterParams: any = { ...params }
-        if (selectedType !== "all") filterParams.type = selectedType
-        if (searchQuery) filterParams.q = searchQuery
-        if (dateFrom) filterParams.from = dateFrom
-        if (dateTo) filterParams.to = dateTo
+        // Filtreleme parametrelerini ekle
+        if (selectedType !== "all") params.type_id = selectedType
+        if (searchQuery) params.q = searchQuery
+        if (dateFrom) params.starts_at_from = dateFrom
+        if (dateTo) params.starts_at_to = dateTo
 
-        const response =
-          selectedType !== "all" || searchQuery || dateFrom || dateTo
-            ? await api.filterEvents(filterParams)
-            : await api.getEvents(params)
-
+        const response = await api.getEvents(params)
         setEvents(response.items || [])
       }
     } catch (err) {

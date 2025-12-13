@@ -275,18 +275,35 @@ export const api = {
     }),
 
   // ---------- Organizations (Clubs placeholder) ----------
-  getClubs: async (universityId?: number, search?: string) => {
-    const resp = await fetchAPI("/organizations")
+  /**
+   * getClubs - Backend destekli filtreleme ile clubs çek
+   * @param params: {
+   *   university_id?: number,
+   *   q?: string,
+   *   status?: string,
+   *   owner_username?: string,
+   *   page?: number,
+   *   per_page?: number
+   * }
+   */
+  getClubs: async (params?: {
+    university_id?: number,
+    q?: string,
+    status?: string,
+    owner_username?: string,
+    page?: number,
+    per_page?: number
+    search?: string
+  }) => {
+    const query = params && Object.keys(params).length > 0
+      ? `?${new URLSearchParams(Object.entries(params).reduce((acc, [k, v]) => {
+          if (v !== undefined && v !== null && v !== "") acc[k] = String(v)
+          return acc
+        }, {} as Record<string, string>))}`
+      : ""
+    const resp = await fetchAPI(`/organizations${query}`)
     const items = mapPaginatedResponse(resp).items ?? []
-    let filtered = Array.isArray(items) ? items : []
-    if (typeof universityId === "number") {
-      filtered = filtered.filter((item: any) => item.university_id === universityId)
-    }
-    if (search && search.trim()) {
-      const q = search.trim().toLowerCase()
-      filtered = filtered.filter((item: any) => item.name?.toLowerCase().includes(q))
-    }
-    return filtered.map((item: any) => ({
+    return Array.isArray(items) ? items.map((item: any) => ({
       id: item.id,
       name: item.name,
       description: item.description,
@@ -296,7 +313,7 @@ export const api = {
       status: item.status,
       photo_url: item.photo_url,
       owner_username: item.owner_username,
-    })) ?? []
+    })) : []
   },
   getClub: async (id: number) => {
     const data = await fetchAPI<any>(`/organizations/${id}`)

@@ -53,6 +53,11 @@ function getUserIdFromToken(): number | null {
   return payload?.userId ?? null
 }
 
+function formatToDBDatetime(isoString: string | undefined): string | undefined {
+  if (!isoString) return undefined
+  return isoString.replace("T", " ").replace("Z", "")
+}
+
 // --- Ana Fetch Fonksiyonu ---
 async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, withAuth = true): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
@@ -233,19 +238,94 @@ export const api = {
     return fetchAPI(`/events${query}`).then(mapPaginatedResponse)
   },
   getEvent: (id: number) => fetchAPI(`/events/${id}`),
-  createEvent: (data: any) =>
-    fetchAPI("/events", {
+  getMyEvents: async (opts?: { userId?: number; username?: string; perPage?: number }) => {
+    // Use /users/me/events endpoint which returns user's participated events
+    const params: Record<string, any> = {
+      page: 1,
+      per_page: opts?.perPage ?? 50,
+    }
+    const query = new URLSearchParams(params as any).toString()
+    const resp = await fetchAPI(`/users/me/events${query ? '?' + query : ''}`)
+    const items = mapPaginatedResponse(resp).items ?? []
+    return items.map((item: any) => ({
+      ...item,
+      id: item.event_id ?? item.id,
+      title: item.event_title ?? item.title,
+      participation_status: item.participation_status ?? item.status ?? null,
+    }))
+  },
+
+  getMyOwnedEvents: async (perPage = 50) => {
+    // Get events where current user is the owner
+    const userId = getUserIdFromToken()
+    if (!userId) return []
+
+    const params: Record<string, any> = {
+      owner_id: userId,
+      page: 1,
+      per_page: perPage,
+    }
+    const query = new URLSearchParams(params as any).toString()
+    const resp = await fetchAPI(`/events${query ? '?' + query : ''}`)
+    return mapPaginatedResponse(resp).items ?? []
+  },
+  
+  createEvent: (data: any) => {
+    const payload: Record<string, any> = {
+      title: data.title,
+      explanation: data.explanation,
+      type_id: data.type_id ?? data.typeId,
+      owner_type: data.owner_type ?? "USER",
+      price: data.price ?? 0,
+      starts_at: data.starts_at ? formatToDBDatetime(data.starts_at) : undefined,
+      ends_at: data.ends_at ? formatToDBDatetime(data.ends_at) : undefined,
+      location_name: data.location_name ?? data.locationName,
+      has_register: data.has_register ?? false,
+      user_limit: data.user_limit ?? data.userLimit,
+      is_participants_private: data.is_participants_private ?? false,
+      only_girls: data.only_girls ?? false,
+    }
+
+    // Optional fields
+    if (data.organization_id) payload.organization_id = data.organization_id
+    if (data.photo_url) payload.photo_url = data.photo_url
+    if (data.latitude !== undefined) payload.latitude = data.latitude
+    if (data.longitude !== undefined) payload.longitude = data.longitude
+
+    return fetchAPI("/events", {
       method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateEvent: (id: number, data: any) =>
-    fetchAPI(`/events/${id}`, {
+      body: JSON.stringify(payload),
+    })
+  },
+
+  updateEvent: (id: number, data: any) => {
+    const payload: Record<string, any> = {}
+
+    // Only include fields that are provided
+    if (data.title !== undefined) payload.title = data.title
+    if (data.explanation !== undefined) payload.explanation = data.explanation
+    if (data.type_id !== undefined) payload.type_id = data.type_id
+    if (data.price !== undefined) payload.price = data.price
+    if (data.starts_at) payload.starts_at = formatToDBDatetime(data.starts_at)
+    if (data.ends_at) payload.ends_at = formatToDBDatetime(data.ends_at)
+    if (data.location_name !== undefined) payload.location_name = data.location_name
+    if (data.photo_url !== undefined) payload.photo_url = data.photo_url
+    if (data.status !== undefined) payload.status = data.status
+    if (data.user_limit !== undefined) payload.user_limit = data.user_limit
+    if (data.latitude !== undefined) payload.latitude = data.latitude
+    if (data.longitude !== undefined) payload.longitude = data.longitude
+    if (data.has_register !== undefined) payload.has_register = data.has_register
+    if (data.is_participants_private !== undefined) payload.is_participants_private = data.is_participants_private
+    if (data.only_girls !== undefined) payload.only_girls = data.only_girls
+
+    return fetchAPI(`/events/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     })
   },
-  deleteEvent: (id: number) =>
-    fetchAPI(`/events/${id}`, { method: "DELETE" }),
+  deleteEvent: (id: number) => {
+    return fetchAPI(`/events/${id}`, { method: "DELETE" })
+  },
   updateEventStatus: async () => ({ message: "Not supported in current backend" }),
   filterEvents: (params?: Record<string, any>) => {
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : ""

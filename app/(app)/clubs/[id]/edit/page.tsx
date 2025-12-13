@@ -67,7 +67,7 @@ export default function EditClubPage({ params }: { params: Promise<{ id: string 
     } else if (!authLoading) {
       router.replace("/auth/login")
     }
-  }, [isMounted, user, authLoading, router, params])
+  }, [isMounted, user, authLoading, router, params, t])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target

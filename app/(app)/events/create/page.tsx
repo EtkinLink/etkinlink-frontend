@@ -66,8 +66,10 @@ export default function CreateEventPage() {
     longitude: "",
     // ✅ YENİ
     club_id: "none",
-    join_method: "DIRECT_JOIN", 
+    join_method: "DIRECT_JOIN",
   })
+
+  const [onlyGirls, setOnlyGirls] = useState(false)
   
   // Veri çekme ve Auth kontrolü
   useEffect(() => {
@@ -140,6 +142,7 @@ export default function CreateEventPage() {
         organization_id: formData.club_id && formData.club_id !== "none" ? Number.parseInt(formData.club_id) : null,
         has_register: requiresApplication,
         is_participants_private: false,
+        only_girls: onlyGirls,
       }
 
       await api.createEvent(payload)
@@ -281,6 +284,20 @@ export default function CreateEventPage() {
                     ? "Anyone can join until the limit is reached."
                     : "Users must apply and be approved by you."}
                 </p>
+              </div>
+
+              {/* Only Girls Checkbox */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="only_girls"
+                  checked={onlyGirls}
+                  onChange={(e) => setOnlyGirls(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="only_girls" className="font-normal cursor-pointer">
+                  Only for female participants
+                </Label>
               </div>
 
               <div className="space-y-2">

@@ -114,14 +114,14 @@ export const api = {
     setToken(data.access_token)
     return data
   },
-  signup: (payload: { email: string; password: string; name: string; username?: string }) =>
+  signup: (payload: { email: string; password: string; name: string; gender: "MALE" | "FEMALE" }) =>
     fetchAPI<{ message: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({
         email: payload.email,
         password: payload.password,
         name: payload.name,
-        username: payload.username,
+        gender: payload.gender,
       }),
     }, false),
   logout: () => setToken(null),
@@ -168,18 +168,44 @@ export const api = {
   getAllBadges: async () => [],
   getMyClubs: async () => {
     try {
-      const resp = await fetchAPI<any>("/users/me/organizations")
-      const mapped = mapPaginatedResponse(resp).items ?? []
-      const items = Array.isArray(mapped) ? mapped : []
-      return items
-        .filter((item: any) => (item.relation || item.role) !== "APPLIED")
-        .map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          role: item.role || item.relation || null,
-          member_count: item.member_count ?? null,
-        }))
+      const userId = getUserIdFromToken()
+      if (!userId) return []
+
+      // Get all organizations
+      const allOrgsResp = await fetchAPI<any>("/organizations")
+      const allOrgs = mapPaginatedResponse(allOrgsResp).items ?? []
+
+      // For each organization, fetch details to get members
+      const myClubs: any[] = []
+
+      for (const org of allOrgs) {
+        try {
+          const orgData = await fetchAPI<any>(`/organizations/${org.id}`)
+          const members = Array.isArray(orgData.members) ? orgData.members : []
+
+          // Check if current user is a member OR owner
+          let myMembership = members.find((m: any) => m.id === userId)
+
+          // If not in members list, check if user is the owner
+          if (!myMembership && orgData.owner_user_id === userId) {
+            myMembership = { id: userId, role: 'ADMIN' }
+          }
+
+          if (myMembership) {
+            myClubs.push({
+              id: orgData.id,
+              name: orgData.name,
+              description: orgData.description,
+              role: myMembership.role || 'ADMIN',
+              member_count: members.length,
+            })
+          }
+        } catch (err) {
+          continue
+        }
+      }
+
+      return myClubs
     } catch (err) {
       console.error("getMyClubs failed; backend SQL hatası olabilir:", err)
       // Backend UNION collation hatası yüzünden UI'yi kırmamak için boş liste dön.
@@ -215,8 +241,9 @@ export const api = {
   updateEvent: (id: number, data: any) =>
     fetchAPI(`/events/${id}`, {
       method: "PUT",
-      body: JSON.stringify(data),
-    }),
+      body: JSON.stringify(payload),
+    })
+  },
   deleteEvent: (id: number) =>
     fetchAPI(`/events/${id}`, { method: "DELETE" }),
   updateEventStatus: async () => ({ message: "Not supported in current backend" }),
@@ -230,15 +257,21 @@ export const api = {
   },
 
   // ---------- Participation ----------
-  joinEvent: (eventId: number) =>
-    fetchAPI(`/events/${eventId}/register`, { method: "POST" }),
+  joinEvent: (eventId: number, hasRegister?: boolean) => {
+    // If event requires application (has_register=true), use apply endpoint
+    // Otherwise use direct register endpoint
+    const endpoint = hasRegister
+      ? `/events/${eventId}/apply`
+      : `/events/${eventId}/register`
+    return fetchAPI(endpoint, { method: "POST" })
+  },
   leaveEvent: async (eventId: number) => {
     const userId = getUserIdFromToken()
     if (!userId) throw new APIError("User id missing from token", 400)
     return fetchAPI(`/events/${eventId}/participants/${userId}`, { method: "DELETE" })
   },
-    
-  // ---------- Attendance ----------
+
+  // ---------- Check-in / Attendance ----------
   getAttendance: async (eventId: number) => {
     const resp = await fetchAPI(`/events/${eventId}/attendance`)
     // Backend may return either an array or an object with an "attendance" field
@@ -248,6 +281,11 @@ export const api = {
     fetchAPI(`/events/${eventId}/attendance/${userId}`, {
       method: "PUT",
       body: JSON.stringify({ status }),
+    }),
+  checkInEvent: async (eventId: number, ticketCode: string) =>
+    fetchAPI(`/events/${eventId}/check-in`, {
+      method: "POST",
+      body: JSON.stringify({ ticket_code: ticketCode }),
     }),
 
   // ---------- Event Applications ----------
@@ -317,8 +355,6 @@ export const api = {
   },
   getClub: async (id: number) => {
     const data = await fetchAPI<any>(`/organizations/${id}`)
-    const joinMethod: "OPEN" | "APPLICATION_ONLY" =
-      data?.join_method === "OPEN" ? "OPEN" : "APPLICATION_ONLY"
     return {
       id: data.id,
       name: data.name,
@@ -327,7 +363,7 @@ export const api = {
       owner_username: data.owner_username,
       university_name: "",
       member_count: Array.isArray(data.members) ? data.members.length : 0,
-      join_method: joinMethod,
+      join_method: data.join_method ?? "OPEN",
       status: data.status,
       photo_url: data.photo_url,
       events: Array.isArray(data.events)

@@ -9,7 +9,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 // ✅ YENİ: İkonlar eklendi
-import { ArrowLeft, Users, Calendar, University, User, Info, UserPlus, UserMinus, FileText, Clock, Check, Settings } from "lucide-react"
+import { ArrowLeft, Users, Calendar, University, User, Info, UserPlus, UserMinus, FileText, Clock, Check, Settings, Edit2, X } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // --- ARAYÜZLER (TYPES) ---
 
@@ -58,6 +69,7 @@ export default function ClubDetailPage() {
   const [isActionLoading, setIsActionLoading] = useState(false) // Bütün butonlar için
   const [isMounted, setIsMounted] = useState(false)
   const [membershipStatus, setMembershipStatus] = useState<ApplicationStatus>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // 1. Hydration ve URL'den ID'yi çekme
   useEffect(() => {
@@ -161,9 +173,9 @@ export default function ClubDetailPage() {
   }
 
   const handleApply = async () => {
-    if (!user) { window.location.href = "/auth/login"; return } 
+    if (!user) { window.location.href = "/auth/login"; return }
     if (!clubId) return
-    
+
     setIsActionLoading(true)
     try {
       // Not: "why_me" (neden ben?) alanı için bir modal/popup açılabilir
@@ -180,6 +192,18 @@ export default function ClubDetailPage() {
       }
     } finally {
       setIsActionLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!clubId) return
+    setIsDeleting(true)
+    try {
+      await api.deleteClub(clubId)
+      window.location.href = "/clubs"
+    } catch (error: any) {
+      alert(error.message || "Failed to delete club")
+      setIsDeleting(false)
     }
   }
 

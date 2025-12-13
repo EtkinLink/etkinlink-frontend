@@ -25,39 +25,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       
       {/* === KALICI GLOBAL NAVBAR (HEADER) === */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          
+        <div className="container flex h-16 items-center justify-between gap-2 px-4">
+
           {/* Logo */}
-          <Link href="/events" className="flex items-center gap-2">
-            <Calendar className="h-6 w-6 text-indigo-600" />
-            <span className="text-xl font-bold">EtkinLink</span>
+          <Link href="/events" className="flex items-center gap-2 flex-shrink-0">
+            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
+            <span className="text-lg sm:text-xl font-bold">EtkinLink</span>
           </Link>
-          
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-1 sm:gap-3">
             {!isLoading && user && (
-              <nav className="flex items-center gap-1 sm:gap-4">
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/events">{t("nav.events")}</Link>
+              <nav className="flex items-center gap-0.5 sm:gap-2">
+                <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">
+                  <Link href="/events">
+                    <span className="hidden md:inline">{t("nav.events")}</span>
+                    <Calendar className="h-4 w-4 md:hidden" />
+                  </Link>
                 </Button>
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">
                   <Link href="/clubs">
-                    <Users className="mr-0 sm:mr-2 h-4 w-4" />
-                    <span className="hidden sm:inline">{t("nav.clubs")}</span>
+                    <Users className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline">{t("nav.clubs")}</span>
                   </Link>
                 </Button>
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">
                   <Link href="/profile">
-                    <User className="mr-0 sm:mr-2 h-4 w-4" />
-                    <span className="hidden sm:inline">{t("nav.profile")}</span>
+                    <User className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline">{t("nav.profile")}</span>
                   </Link>
                 </Button>
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
-                  <LogOut className="mr-0 sm:mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">{t("nav.signOut")}</span>
+                <Button variant="ghost" size="sm" onClick={handleLogout} className="px-2 sm:px-3">
+                  <LogOut className="h-4 w-4 md:mr-2" />
+                  <span className="hidden md:inline">{t("nav.signOut")}</span>
                 </Button>
               </nav>
             )}
-            <LanguageSwitcher className="w-[220px]" />
+            <LanguageSwitcher className="w-[100px] sm:w-[180px] md:w-[220px]" />
           </div>
         </div>
       </header>

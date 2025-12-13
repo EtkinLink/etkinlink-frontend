@@ -191,18 +191,24 @@ export default function EventDetailPage() {
     setIsApplying(true)
     try {
       const reason = applicationReason.trim()
-      await api.createApplication(event.id, reason ? reason : undefined)
-      
-      // Başarılı olursa durumu PENDING'e çek ve formu kilitle
+      // Use the correct apply endpoint for application-required events
+      await api.createApplication(event.id, reason || undefined)
+
+      // Set status to PENDING after successful application
       setApplicationStatus("PENDING")
       setApplicationReason("")
-      await fetchEvent() // Verileri tazelemek için
+      await fetchEvent()
     } catch (error: any) {
-      // Eğer backend 409 (Conflict - Zaten başvurmuş) dönüyorsa, UI'ı PENDING yap
-      if (error?.status === 409 || error?.message?.toLowerCase().includes("already")) {
+      // Handle errors
+      const errorMsg = error?.message || "Failed to submit application"
+
+      if (error?.status === 409 || errorMsg.toLowerCase().includes("already")) {
+        // Already applied
         setApplicationStatus("PENDING")
+      } else if (errorMsg.includes("Transaction") || errorMsg.includes("SQLAlchemy") || error.status === 503) {
+        alert("⚠️ Backend Error: Database issue on server. Please try again later.\n\nTechnical: SQLAlchemy transaction error")
       } else {
-        alert(error.message || "Failed to submit application")
+        alert(errorMsg)
       }
     } finally {
       setIsApplying(false)
@@ -217,11 +223,23 @@ export default function EventDetailPage() {
     if (!event) return
     setIsJoining(true)
     try {
-      await api.joinEvent(event.id)
+      // DIRECT REGISTER - only for events with has_register=false
+      // This should NEVER be called for application-required events
+      await api.joinEvent(event.id, false) // Always false for direct join
       await fetchEvent()
       setHasJoined(true)
     } catch (error: any) {
-      alert(error.message || "Failed to join event")
+      const errorMsg = error.message || "Failed to join event"
+
+      if (errorMsg.includes("Transaction") || errorMsg.includes("SQLAlchemy") || error.status === 503) {
+        alert("⚠️ Backend Error: Database issue on server. Please try again later.\n\nTechnical: SQLAlchemy transaction error")
+      } else if (error.status === 409) {
+        // Already joined or event full
+        alert(errorMsg)
+        await fetchEvent() // Refresh to show current status
+      } else {
+        alert(errorMsg)
+      }
     } finally {
       setIsJoining(false)
     }

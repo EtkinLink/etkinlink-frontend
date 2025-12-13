@@ -17,7 +17,6 @@ import { ArrowLeft, AlertCircle, Trash2 } from "lucide-react"
 interface ClubFormData {
   name: string
   description: string
-  photo_url: string
 }
 
 export default function EditClubPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,7 +29,6 @@ export default function EditClubPage({ params }: { params: Promise<{ id: string 
   const [formData, setFormData] = useState<ClubFormData>({
     name: "",
     description: "",
-    photo_url: "",
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -57,7 +55,6 @@ export default function EditClubPage({ params }: { params: Promise<{ id: string 
         setFormData({
           name: clubData.name || "",
           description: clubData.description || "",
-          photo_url: clubData.photo_url || "",
         })
       } catch (err) {
         setError(t("clubs.edit.error.loadFailed"))
@@ -92,7 +89,6 @@ export default function EditClubPage({ params }: { params: Promise<{ id: string 
 
       await api.updateClub(clubId, {
         description: formData.description,
-        photo_url: formData.photo_url,
       })
 
       setSuccess(t("clubs.edit.success.updated"))
@@ -194,18 +190,6 @@ export default function EditClubPage({ params }: { params: Promise<{ id: string 
                   onChange={handleChange}
                   placeholder="Kulübü açıklayın..."
                   rows={4}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="photo_url">Foto URL</Label>
-                <Input
-                  id="photo_url"
-                  name="photo_url"
-                  type="url"
-                  value={formData.photo_url}
-                  onChange={handleChange}
-                  placeholder="https://example.com/photo.jpg"
                 />
               </div>
 

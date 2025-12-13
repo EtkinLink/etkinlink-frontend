@@ -1,12 +1,7 @@
 "use client"
 
-// Yeni backend base adresi
-const API_BASE_URL =
-  typeof window === "undefined"
-    ? process.env.NEXT_PUBLIC_API_URL || "/api"
-    : "/api"
-
-// Token saklama anahtarı
+// Next.js API route proxy kullan (same-origin, CORS yok)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
 const TOKEN_KEY = "access_token"
 
 export class APIError extends Error {
@@ -21,7 +16,6 @@ export class APIError extends Error {
   }
 }
 
-// Global 401 handler
 let onUnauthorized: ((resp?: Response) => void) | null = null
 export function setUnauthorizedHandler(fn: ((resp?: Response) => void) | null) {
   onUnauthorized = fn
@@ -29,12 +23,17 @@ export function setUnauthorizedHandler(fn: ((resp?: Response) => void) | null) {
 
 // --- Token Helpers ---
 export function getToken(): string | null {
-  return typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null
+  if (typeof window === "undefined") return null
+  const token = localStorage.getItem(TOKEN_KEY)
+  return token
 }
 export function setToken(token: string | null) {
   if (typeof window === "undefined") return
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 function decodeJwtPayload(token: string | null) {
@@ -53,27 +52,50 @@ function getUserIdFromToken(): number | null {
   return payload?.userId ?? null
 }
 
+function formatToDBDatetime(isoString: string | undefined): string | undefined {
+  if (!isoString) return undefined
+  return isoString.replace('T', ' ').replace('Z', '')
+}
+
 // --- Ana Fetch Fonksiyonu ---
 async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, withAuth = true): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`
+  // URL'de trailing slash sorunu olmasın diye, endpoint'ı normalize et
+  const normalizedEndpoint = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint
+  const url = `${API_BASE_URL}${normalizedEndpoint}`
 
-  const headers: HeadersInit = {
-    ...(options.body && !(options.body instanceof FormData) && !new Headers(options.headers || {}).has("Content-Type")
-      ? { "Content-Type": "application/json" }
-      : {}),
-    ...options.headers,
+  // 🔧 Plain object kullan, Headers object yerine
+  const headers: Record<string, string> = {}
+  
+  // options'dan gelen headers'ı kopyala
+  if (options.headers) {
+    if (options.headers instanceof Headers) {
+      options.headers.forEach((value, key) => {
+        headers[key] = value
+      })
+    } else {
+      Object.assign(headers, options.headers as Record<string, string>)
+    }
+  }
+  
+  // Content-Type ekle (varsa)
+  if (options.body && !(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
   }
 
+  // Authorization header ekle
   const token = withAuth ? getToken() : null
   if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
+    headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(url, { ...options, headers })
-
-  if (response.status === 401 && onUnauthorized) {
-    try { onUnauthorized(response) } catch {}
+  // exclude headers from options, add our complete headers
+  const { headers: _, ...restOptions } = options
+  const fetchOptions: RequestInit = {
+    ...restOptions,
+    headers,
   }
+
+  const response = await fetch(url, fetchOptions)
 
   if (!response.ok) {
     const fallback = { error: { message: "An error occurred" } }
@@ -83,6 +105,16 @@ async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, wi
       payload?.message ||
       (Array.isArray(payload?.errors) ? payload.errors.join(", ") : undefined) ||
       `HTTP ${response.status}`
+
+    if (response.status === 401 && onUnauthorized) {
+      const lower = (msg || "").toLowerCase()
+      const looksLikeTokenError =
+        lower.includes("token") || lower.includes("expired") || lower.includes("invalid") || lower.includes("jwt")
+      if (looksLikeTokenError) {
+        try { onUnauthorized(response) } catch {}
+      }
+    }
+
     throw new APIError(msg, response.status, payload?.error?.code, payload?.error?.details)
   }
 
@@ -91,7 +123,6 @@ async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, wi
   return response.json() as Promise<T>
 }
 
-// Helper: paginated response'u UI'nin beklediği formata çevir
 function mapPaginatedResponse(resp: any) {
   if (resp && typeof resp === "object" && "data" in resp) {
     return {
@@ -106,12 +137,16 @@ function mapPaginatedResponse(resp: any) {
 export const api = {
   // ---------- Auth ----------
   loginWithPassword: async (email: string, password: string) => {
-    const data = await fetchAPI<{ access_token: string }>(
+    const data = await fetchAPI<any>(
       "/auth/login",
       { method: "POST", body: JSON.stringify({ email, password }) },
       false
     )
-    setToken(data.access_token)
+    const token = data?.access_token || data?.token
+    if (!token) {
+      throw new Error('Login response token içermiyor')
+    }
+    setToken(token)
     return data
   },
   signup: (payload: { email: string; password: string; name: string; username?: string }) =>
@@ -157,7 +192,6 @@ export const api = {
   getUserEvents: async (userId: number) => {
     const resp = await fetchAPI<any>(`/users/${userId}/events`)
     const items = mapPaginatedResponse(resp).items ?? []
-    // Backend bazen "event_id" döndürüyor; frontend "id" bekliyor.
     return items.map((item: any) => ({
       ...item,
       id: item.id ?? item.event_id ?? item.eventId,
@@ -182,36 +216,44 @@ export const api = {
         }))
     } catch (err) {
       console.error("getMyClubs failed; backend SQL hatası olabilir:", err)
-      // Backend UNION collation hatası yüzünden UI'yi kırmamak için boş liste dön.
       return []
     }
   },
-  // Eski adıyla alias (gerekirse kullanıcıya özel listeye dönmek için)
   getMyOrganizations: async () => api.getMyClubs(),
 
   // ---------- Dictionaries ----------
   getUniversities: () => fetchAPI("/universities"),
   getEventTypes: async () => {
     const resp = await fetchAPI("/event_types")
-    // Backend farklı şekillerde dönebiliyor, hepsini yakala
     if (Array.isArray(resp)) return resp
     if (resp && Array.isArray((resp as any).data)) return (resp as any).data
-    if (resp && Array.isArray((resp as any).items)) return (resp as any).items
-    if (resp && Array.isArray((resp as any).event_types)) return (resp as any).event_types
     return mapPaginatedResponse(resp).items ?? []
   },
   
   // ---------- Events ----------
+  // ✅ DÜZELTME: Trailing slash tutarlılığı - sondaki / YOK
   getEvents: (params?: Record<string, any>) => {
-    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ""
-    return fetchAPI(`/events${query}`).then(mapPaginatedResponse)
+    const query = new URLSearchParams(params as any).toString()
+    const endpoint = `/events${query ? '?' + query : ''}`
+    return fetchAPI(endpoint).then(mapPaginatedResponse)
   },
+  
   getEvent: (id: number) => fetchAPI(`/events/${id}`),
-  createEvent: (data: any) =>
-    fetchAPI("/events", {
+  
+  // ✅ DÜZELTME: Trailing slash tutarlılığı - sondaki / YOK
+  createEvent: (data: any) => {
+    const payload = {
+        ...data,
+        starts_at: data.starts_at ? formatToDBDatetime(data.starts_at) : undefined,
+        ends_at: data.ends_at ? formatToDBDatetime(data.ends_at) : undefined,
+    };
+
+    return fetchAPI("/events", {
       method: "POST",
-      body: JSON.stringify(data),
-    }),
+      body: JSON.stringify(payload),
+    });
+  },
+  
   updateEvent: (id: number, data: any) =>
     fetchAPI(`/events/${id}`, {
       method: "PUT",
@@ -219,14 +261,15 @@ export const api = {
     }),
   deleteEvent: (id: number) =>
     fetchAPI(`/events/${id}`, { method: "DELETE" }),
-  updateEventStatus: async () => ({ message: "Not supported in current backend" }),
+  updateEventStatus: async () => ({ message: "Not supported" }),
+
   filterEvents: (params?: Record<string, any>) => {
-    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ""
-    return fetchAPI(`/events/filter${query}`).then(mapPaginatedResponse)
+    const query = new URLSearchParams(params as any).toString()
+    return fetchAPI(`/events/filter${query ? '?' + query : ''}`).then(mapPaginatedResponse)
   },
   getNearbyEvents: (lat: number, lng: number, radiusKm = 10, params?: Record<string, any>) => {
-    const query = params ? `?${new URLSearchParams(params as any).toString()}` : ""
-    return fetchAPI(`/events${query}`).then(mapPaginatedResponse)
+    const query = new URLSearchParams(params as any).toString()
+    return fetchAPI(`/events${query ? '?' + query : ''}`).then(mapPaginatedResponse)
   },
 
   // ---------- Participation ----------
@@ -241,12 +284,11 @@ export const api = {
   // ---------- Attendance ----------
   getAttendance: async (eventId: number) => {
     const resp = await fetchAPI(`/events/${eventId}/attendance`)
-    // Backend may return either an array or an object with an "attendance" field
     return Array.isArray(resp) ? resp : resp?.attendance ?? []
   },
   setAttendance: async (eventId: number, userId: number, status: "ATTENDED" | "NO_SHOW") =>
     fetchAPI(`/events/${eventId}/attendance/${userId}`, {
-      method: "PUT",
+      method: "POST",
       body: JSON.stringify({ status }),
     }),
 
@@ -257,10 +299,8 @@ export const api = {
       body: JSON.stringify({ why_me: whyMe }),
     }),
   getApplications: async (eventId: number) => {
-    // Backend'te applications.created_at kolonu eksik; çağrı 500 dönüyor.
-    // Geçici olarak istek atmadan boş liste döndürüyoruz ki UI patlamasın.
-    console.warn("getApplications skipped: backend 'applications.created_at' hatası var")
-    return []
+    const resp = await fetchAPI(`/events/${eventId}/applications`)
+    return mapPaginatedResponse(resp).items
   },
   patchApplication: (applicationId: number, status: "APPROVED" | "REJECTED") =>
     fetchAPI(`/applications/${applicationId}/status`, {
@@ -275,31 +315,36 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rating, comment }),
     }),
+  
+  // ---------- Reports ----------
+  createReport: (eventId: number, reason: string) =>
+    fetchAPI(`/events/${eventId}/report`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  getReports: (params?: Record<string, any>) => {
+    const query = new URLSearchParams(params as any).toString()
+    return fetchAPI(`/events/my-reports${query ? '?' + query : ''}`).then(mapPaginatedResponse)
+  },
 
-  // ---------- Organizations (Clubs placeholder) ----------
+  // ---------- Organizations ----------
+  // ✅ DÜZELTME: Trailing slash tutarlılığı
   getClubs: async (universityId?: number, search?: string) => {
     const resp = await fetchAPI("/organizations")
     const items = mapPaginatedResponse(resp).items ?? []
     let filtered = Array.isArray(items) ? items : []
-    if (typeof universityId === "number") {
-      filtered = filtered.filter((item: any) => item.university_id === universityId)
-    }
-    if (search && search.trim()) {
-      const q = search.trim().toLowerCase()
-      filtered = filtered.filter((item: any) => item.name?.toLowerCase().includes(q))
-    }
     return filtered.map((item: any) => ({
       id: item.id,
       name: item.name,
       description: item.description,
       university_name: item.university_name ?? "",
-      university_id: item.university_id ?? null,
       member_count: item.member_count ?? 0,
       status: item.status,
       photo_url: item.photo_url,
       owner_username: item.owner_username,
     })) ?? []
   },
+  
   getClub: async (id: number) => {
     const data = await fetchAPI<any>(`/organizations/${id}`)
     const joinMethod: "OPEN" | "APPLICATION_ONLY" =
@@ -308,81 +353,71 @@ export const api = {
       id: data.id,
       name: data.name,
       description: data.description,
+      university_name: data.university_name ?? "",
       owner_user_id: null,
       owner_username: data.owner_username,
-      university_name: "",
       member_count: Array.isArray(data.members) ? data.members.length : 0,
       join_method: joinMethod,
       status: data.status,
       photo_url: data.photo_url,
-      events: Array.isArray(data.events)
-        ? data.events.map((ev: any) => ({
-            id: ev.id,
-            title: ev.title,
-            starts_at: ev.starts_at,
-            ends_at: ev.ends_at,
-            status: ev.status,
-            event_type: ev.event_type,
-          }))
-        : [],
-      members: Array.isArray(data.members)
-        ? data.members.map((m: any) => ({
-            id: m.id,
-            username: m.username,
-            role: m.role,
-            joined_at: m.joined_at,
-            name: m.name,
-          }))
-        : [],
+      events: Array.isArray(data.events) ? data.events.map((ev: any) => ({
+          id: ev.id, title: ev.title, starts_at: ev.starts_at, ends_at: ev.ends_at,
+          status: ev.status, event_type: ev.event_type,
+        })) : [],
+      members: Array.isArray(data.members) ? data.members.map((m: any) => ({
+          id: m.id, username: m.username, role: m.role, joined_at: m.joined_at, name: m.name,
+        })) : [],
     }
   },
+  
+  // ✅ DÜZELTME: Trailing slash tutarlılığı - sondaki / YOK
   createClub: (data: { name: string; description?: string }) =>
-    fetchAPI("/organizations", { method: "POST", body: JSON.stringify(data) }),
-  joinClub: async (clubId: number) =>
-    fetchAPI(`/organizations/${clubId}/apply`, { method: "POST", body: JSON.stringify({ motivation: "" }) }),
+    fetchAPI("/organizations", { 
+      method: "POST", 
+      body: JSON.stringify(data) 
+    }),
+  
+  joinClub: async (clubId: number, motivation?: string) =>
+    fetchAPI(`/organizations/${clubId}/apply`, { 
+      method: "POST", 
+      body: JSON.stringify({ motivation: motivation || "" }) 
+    }),
+    
   leaveClub: async (clubId: number) => {
     const userId = getUserIdFromToken()
     if (!userId) throw new APIError("User id missing from token", 400)
     return fetchAPI(`/organizations/${clubId}/members/${userId}`, { method: "DELETE" })
   },
+  
   getMyClubApplicationStatus: async (clubId: number) => {
     const tokenUserId = getUserIdFromToken()
     let status: "MEMBER" | "ADMIN" | "PENDING" | null = null
 
-    // 1) Üyelik kontrolü (detay endpoint)
     try {
       const data = await fetchAPI<any>(`/organizations/${clubId}`)
       const members = Array.isArray(data?.members) ? data.members : []
       if (tokenUserId) {
         const me = members.find((m: any) => m.id === tokenUserId)
-        if (me) {
-          status = me.role === "ADMIN" ? "ADMIN" : "MEMBER"
-        }
+        if (me) { status = me.role === "ADMIN" ? "ADMIN" : "MEMBER" }
       }
-    } catch {
-      // ignore, try next check
+    } catch {/* ignore */}
+    
+    if (!status) {
+      try {
+        const resp = await fetchAPI<any>("/users/me/organizations")
+        const entry = mapPaginatedResponse(resp).items?.find((o: any) => o.id === clubId)
+        if (entry && entry.relation === "APPLIED") { status = "PENDING" }
+      } catch {/* ignore */}
     }
-
-    if (status) return { status }
-
-    // 2) Başvuru kontrolü (kullanıcının org listesi; relation=APPLIED)
-    try {
-      const resp = await fetchAPI<any>("/users/me/organizations")
-      const entry = mapPaginatedResponse(resp).items?.find((o: any) => o.id === clubId)
-      if (entry && entry.relation === "APPLIED") {
-        status = "PENDING"
-      }
-    } catch {
-      // ignore
-    }
-
     return { status }
   },
+  
   createClubApplication: (clubId: number, whyMe?: string) =>
     fetchAPI(`/organizations/${clubId}/apply`, {
       method: "POST",
       body: JSON.stringify({ motivation: whyMe }),
     }),
+    
   getClubApplications: async (clubId: number) => {
     const resp = await fetchAPI(`/organizations/${clubId}/applications`)
     return mapPaginatedResponse(resp).items?.map((item: any) => ({
@@ -390,6 +425,7 @@ export const api = {
       why_me: item.why_me ?? item.motivation ?? null,
     }))
   },
+  
   patchClubApplication: (clubId: number, applicationId: number, status: "APPROVED" | "REJECTED") => {
     const path =
       status === "APPROVED"
@@ -397,16 +433,18 @@ export const api = {
         : `/organizations/${clubId}/applications/${applicationId}/reject`
     return fetchAPI(path, { method: "POST" })
   },
+  
   getClubMembers: async (clubId: number) => {
     const data = await fetchAPI<any>(`/organizations/${clubId}`)
     return data.members ?? []
   },
+  
   rejectClubApplication: (clubId: number, applicationId: number) =>
     fetchAPI(`/organizations/${clubId}/applications/${applicationId}/reject`, {
       method: "POST",
     }),
     
-  // ---------- Notifications (not available) ----------
+  // ---------- Notifications ----------
   getNotifications: async () => [],
   markNotificationsRead: async () => ({ message: "Not supported" }),
 }

@@ -299,8 +299,22 @@ export const api = {
       body: JSON.stringify({ why_me: whyMe }),
     }),
   getApplications: async (eventId: number) => {
-    const resp = await fetchAPI(`/events/${eventId}/applications`)
-    return mapPaginatedResponse(resp).items
+    try {
+      const resp = await fetchAPI(`/events/${eventId}/applications`)
+      const items = mapPaginatedResponse(resp).items ?? []
+      console.log("Applications raw response:", resp)
+      console.log("Applications mapped items:", items)
+      // Backend 'application_id' döndürüyor, 'id'ye map et
+      const mapped = items.map((item: any) => ({
+        ...item,
+        id: item.application_id || item.id,
+      }))
+      console.log("Applications final mapped:", mapped)
+      return mapped
+    } catch (error: any) {
+      console.error("Error fetching applications:", error)
+      throw error
+    }
   },
   patchApplication: (applicationId: number, status: "APPROVED" | "REJECTED") =>
     fetchAPI(`/applications/${applicationId}/status`, {
@@ -443,6 +457,36 @@ export const api = {
     fetchAPI(`/organizations/${clubId}/applications/${applicationId}/reject`, {
       method: "POST",
     }),
+  
+  // ✅ YENİ: Organization güncelleme
+  updateClub: (clubId: number, data: { description?: string; photo_url?: string; status?: string }) =>
+    fetchAPI(`/organizations/${clubId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  
+  // ✅ YENİ: Organization silme
+  deleteClub: (clubId: number) =>
+    fetchAPI(`/organizations/${clubId}`, { method: "DELETE" }),
+  
+  // ✅ YENİ: Attendance işlemi (status güncelleme)
+  setEventAttendanceStatus: (eventId: number, userId: number, status: "ATTENDED" | "NO_SHOW") =>
+    fetchAPI(`/events/${eventId}/attendance/${userId}`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
+  
+  // ✅ YENİ: Tüm applications'ı getir
+  getAllApplications: async () => {
+    const resp = await fetchAPI("/applications")
+    return mapPaginatedResponse(resp).items ?? []
+  },
+  
+  // ✅ YENİ: Tüm participants'ı getir
+  getAllParticipants: async () => {
+    const resp = await fetchAPI("/participants")
+    return mapPaginatedResponse(resp).items ?? []
+  },
     
   // ---------- Notifications ----------
   getNotifications: async () => [],

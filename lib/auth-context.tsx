@@ -62,9 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     }
 
-    // ✅ YENİ: API'dan 401 hatası (token geçersiz vb.) gelirse otomatik logout yap
+    // ✅ YENİ: API'dan 401 hatası (token geçersiz vb.) gelirse token'ı temizle
+    // Form sayfaları bunu catch edip giriş yönlendirmesini yapacak
     setUnauthorizedHandler(() => {
-      logout()
+      setToken(null)
+      setTokenState(null)
+      setUser(null)
     })
     
     // Component kaldırıldığında handler'ı temizle

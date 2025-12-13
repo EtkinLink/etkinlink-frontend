@@ -286,10 +286,10 @@ export const api = {
     const resp = await fetchAPI(`/events/${eventId}/attendance`)
     return Array.isArray(resp) ? resp : resp?.attendance ?? []
   },
-  setAttendance: async (eventId: number, ticketCode: string) =>
-    fetchAPI(`/events/${eventId}/check-in`, {
+  setAttendance: async (eventId: number, userId: number, status: "ATTENDED" | "NO_SHOW") =>
+    fetchAPI(`/events/${eventId}/attendance/${userId}`, {
       method: "POST",
-      body: JSON.stringify({ ticket_code: ticketCode }),
+      body: JSON.stringify({ status }),
     }),
 
   // ---------- Event Applications ----------
@@ -353,6 +353,7 @@ export const api = {
       id: data.id,
       name: data.name,
       description: data.description,
+      university_name: data.university_name ?? "",
       owner_user_id: null,
       owner_username: data.owner_username,
       member_count: Array.isArray(data.members) ? data.members.length : 0,

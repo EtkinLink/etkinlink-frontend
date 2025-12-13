@@ -38,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { EventMap } from "@/components/event-map"
 import { AddToCalendarButton } from "@/components/add-to-calendar-button"
+import { useToast } from "@/hooks/use-toast"
 
 // Types
 interface EventDetail {
@@ -74,6 +75,7 @@ export default function EventDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
+  const { toast } = useToast()
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isJoining, setIsJoining] = useState(false)
@@ -198,17 +200,44 @@ export default function EventDetailPage() {
       setApplicationStatus("PENDING")
       setApplicationReason("")
       await fetchEvent()
+      toast({
+        title: "Application Submitted",
+        description: "Your application has been submitted successfully!",
+        variant: "default",
+      })
     } catch (error: any) {
       // Handle errors
       const errorMsg = error?.message || "Failed to submit application"
 
-      if (error?.status === 409 || errorMsg.toLowerCase().includes("already")) {
+      // Check for inactive/completed event first (before checking "already")
+      if (errorMsg.toLowerCase().includes("not active") || errorMsg.toLowerCase().includes("completed") || errorMsg.toLowerCase().includes("past") || errorMsg.toLowerCase().includes("expired") || errorMsg.toLowerCase().includes("ended")) {
+        // Event has already passed or is not active
+        toast({
+          title: "Event Unavailable",
+          description: "This event is not active or has already been completed.",
+          variant: "destructive",
+        })
+      } else if (error?.status === 409 || errorMsg.toLowerCase().includes("already applied")) {
         // Already applied
         setApplicationStatus("PENDING")
+        toast({
+          title: "Already Applied",
+          description: "You have already applied to this event.",
+          variant: "default",
+        })
       } else if (errorMsg.includes("Transaction") || errorMsg.includes("SQLAlchemy") || error.status === 503) {
-        alert("⚠️ Backend Error: Database issue on server. Please try again later.\n\nTechnical: SQLAlchemy transaction error")
+        console.error("Database error:", errorMsg) // Log technical details
+        toast({
+          title: "Server Error",
+          description: "We're experiencing technical difficulties. Please try again later.",
+          variant: "destructive",
+        })
       } else {
-        alert(errorMsg)
+        toast({
+          title: "Application Failed",
+          description: errorMsg,
+          variant: "destructive",
+        })
       }
     } finally {
       setIsApplying(false)
@@ -228,17 +257,43 @@ export default function EventDetailPage() {
       await api.joinEvent(event.id, false) // Always false for direct join
       await fetchEvent()
       setHasJoined(true)
+      toast({
+        title: "Joined Successfully",
+        description: "You have successfully joined this event!",
+        variant: "default",
+      })
     } catch (error: any) {
       const errorMsg = error.message || "Failed to join event"
 
-      if (errorMsg.includes("Transaction") || errorMsg.includes("SQLAlchemy") || error.status === 503) {
-        alert("⚠️ Backend Error: Database issue on server. Please try again later.\n\nTechnical: SQLAlchemy transaction error")
+      // Check for inactive/completed event first
+      if (errorMsg.toLowerCase().includes("not active") || errorMsg.toLowerCase().includes("completed") || errorMsg.toLowerCase().includes("past") || errorMsg.toLowerCase().includes("expired") || errorMsg.toLowerCase().includes("ended")) {
+        // Event has already passed or is not active
+        toast({
+          title: "Event Unavailable",
+          description: "This event is not active or has already been completed.",
+          variant: "destructive",
+        })
+      } else if (errorMsg.includes("Transaction") || errorMsg.includes("SQLAlchemy") || error.status === 503) {
+        console.error("Database error:", errorMsg) // Log technical details
+        toast({
+          title: "Server Error",
+          description: "We're experiencing technical difficulties. Please try again later.",
+          variant: "destructive",
+        })
       } else if (error.status === 409) {
         // Already joined or event full
-        alert(errorMsg)
+        toast({
+          title: "Cannot Join",
+          description: errorMsg,
+          variant: "destructive",
+        })
         await fetchEvent() // Refresh to show current status
       } else {
-        alert(errorMsg)
+        toast({
+          title: "Join Failed",
+          description: errorMsg,
+          variant: "destructive",
+        })
       }
     } finally {
       setIsJoining(false)
@@ -258,7 +313,11 @@ export default function EventDetailPage() {
       setHasJoined(false)
       setApplicationStatus(null)
     } catch (error: any) {
-      alert(error.message || "Failed to leave event")
+      toast({
+        title: "Leave Failed",
+        description: error.message || "Failed to leave event",
+        variant: "destructive",
+      })
     } finally {
       setIsJoining(false)
     }
@@ -269,9 +328,18 @@ export default function EventDetailPage() {
     setIsDeleting(true)
     try {
       await api.deleteEvent(event.id)
-      router.push("/events")
+      toast({
+        title: "Event Deleted",
+        description: "The event has been successfully deleted.",
+        variant: "success",
+      })
+      setTimeout(() => router.push("/events"), 1000)
     } catch (error: any) {
-      alert(error.message || "Failed to delete event")
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete event",
+        variant: "destructive",
+      })
       setIsDeleting(false)
     }
   }

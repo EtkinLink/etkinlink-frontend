@@ -145,18 +145,17 @@ export default function CreateEventPage() {
         only_girls: onlyGirls,
       }
 
+      console.log("Creating event with payload:", payload)
+      console.log("Auth token exists:", !!user)
+
       await api.createEvent(payload)
       window.location.href = `/events`
-      
+
     } catch (error: any) {
+      console.error("Event creation error:", error)
       if (error instanceof APIError) {
-        // 401 ise token geçersiz, giriş sayfasına yönlendir
-        if (error.status === 401) {
-          setError("Your session has expired. Please log in again.")
-          setTimeout(() => {
-            window.location.href = "/auth/login"
-          }, 2000)
-        } else {
+        // 401 will be handled by global unauthorized handler
+        if (error.status !== 401) {
           setError(error.message)
         }
       } else {

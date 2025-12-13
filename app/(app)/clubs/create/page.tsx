@@ -132,13 +132,8 @@ export default function CreateClubPage() {
       
     } catch (err) {
       if (err instanceof APIError) {
-        // 401 ise token geçersiz, giriş sayfasına yönlendir
-        if (err.status === 401) {
-          setError("Your session has expired. Please log in again.")
-          setTimeout(() => {
-            window.location.href = "/auth/login"
-          }, 2000)
-        } else {
+        // 401 will be handled by global unauthorized handler
+        if (err.status !== 401) {
           setError(err.message)
         }
       } else {

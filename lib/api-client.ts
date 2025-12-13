@@ -48,6 +48,18 @@ function decodeJwtPayload(token: string | null) {
   }
 }
 
+// Check if token is expired
+export function isTokenExpired(token: string | null): boolean {
+  const payload = decodeJwtPayload(token)
+  if (!payload || !payload.exp) return true
+
+  // JWT exp is in seconds, Date.now() is in milliseconds
+  const expirationTime = payload.exp * 1000
+  const now = Date.now()
+
+  return now >= expirationTime
+}
+
 function getUserIdFromToken(): number | null {
   const payload = decodeJwtPayload(getToken())
   return payload?.userId ?? null
@@ -72,11 +84,19 @@ async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, wi
   const token = withAuth ? getToken() : null
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
+
+    // Debug: Check if token is expired
+    if (isTokenExpired(token)) {
+      console.warn(`⚠️ Token is expired for ${endpoint}`)
+    }
+  } else if (withAuth) {
+    console.warn(`⚠️ No token found for authenticated request to ${endpoint}`)
   }
 
   const response = await fetch(url, { ...options, headers })
 
   if (response.status === 401 && onUnauthorized) {
+    console.error(`🔒 401 Unauthorized on ${endpoint}. Token will be cleared.`)
     try { onUnauthorized(response) } catch {}
   }
 
@@ -85,6 +105,7 @@ async function fetchAPI<T = any>(endpoint: string, options: RequestInit = {}, wi
     const payload = await response.json().catch(() => fallback)
     const msg =
       payload?.error?.message ||
+      (typeof payload?.error === 'string' ? payload.error : undefined) ||
       payload?.message ||
       (Array.isArray(payload?.errors) ? payload.errors.join(", ") : undefined) ||
       `HTTP ${response.status}`
@@ -151,9 +172,11 @@ export const api = {
       ...profile,
     }
   },
-  updateProfile: (data: any) => {
+  updateProfile: async (data: any) => {
     const payload: Record<string, any> = {}
     if (data.username) payload.username = data.username
+    if (data.name) payload.name = data.name
+    if (data.university_id !== undefined) payload.university_id = data.university_id
     return fetchAPI("/users/me", {
       method: "PUT",
       body: JSON.stringify(payload),
@@ -185,7 +208,28 @@ export const api = {
 
       for (const org of allOrgs) {
         try {
-          const orgData = await fetchAPI<any>(`/organizations/${org.id}`)
+          // Fetch organization details without triggering global 401 handler
+          const url = `${API_BASE_URL}/organizations/${org.id}`
+          const token = getToken()
+          const headers: HeadersInit = {
+            "Content-Type": "application/json",
+          }
+          if (token) {
+            (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
+          }
+
+          const response = await fetch(url, { headers })
+
+          // If 401 or 403, skip this org (user doesn't have access)
+          if (response.status === 401 || response.status === 403) {
+            continue
+          }
+
+          if (!response.ok) {
+            continue
+          }
+
+          const orgData = await response.json()
           const members = Array.isArray(orgData.members) ? orgData.members : []
 
           // Check if current user is a member OR owner
@@ -206,6 +250,7 @@ export const api = {
             })
           }
         } catch (err) {
+          // Skip this organization if any error occurs
           continue
         }
       }
@@ -221,9 +266,9 @@ export const api = {
   getMyOrganizations: async () => api.getMyClubs(),
 
   // ---------- Dictionaries ----------
-  getUniversities: () => fetchAPI("/universities"),
+  getUniversities: () => fetchAPI("/universities", {}, false),
   getEventTypes: async () => {
-    const resp = await fetchAPI("/event_types")
+    const resp = await fetchAPI("/event_types", {}, false)
     // Backend farklı şekillerde dönebiliyor, hepsini yakala
     if (Array.isArray(resp)) return resp
     if (resp && Array.isArray((resp as any).data)) return (resp as any).data

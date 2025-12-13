@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react"
 // ✅ api-client'ten doğru getToken/setToken fonksiyonlarını alıyoruz
-import { api, getToken, setToken, setUnauthorizedHandler } from "./api-client"
+import { api, getToken, setToken, setUnauthorizedHandler, isTokenExpired } from "./api-client"
+import { toast } from "@/hooks/use-toast"
 
 // ✅ GÜNCELLEME: User arayüzü, app.py'deki GET /users/me ile eşleşiyor
 interface User {
@@ -54,10 +55,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // ✅ DÜZELTME: "auth_token" yerine api-client'teki "access_token"i kullanan fonksiyon
     const storedToken = getToken()
-    
+
     if (storedToken) {
-      setTokenState(storedToken)
-      fetchProfile()
+      // Check if token is expired before using it
+      if (isTokenExpired(storedToken)) {
+        console.warn("Token is expired on mount, logging out")
+        toast({
+          title: "Session Expired",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
+        })
+        logout()
+        setIsLoading(false)
+      } else {
+        setTokenState(storedToken)
+        fetchProfile()
+      }
     } else {
       setIsLoading(false)
     }
@@ -65,11 +78,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ✅ YENİ: API'dan 401 hatası (token geçersiz vb.) gelirse token'ı temizle
     // Form sayfaları bunu catch edip giriş yönlendirmesini yapacak
     setUnauthorizedHandler(() => {
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again.",
+        variant: "destructive",
+      })
       setToken(null)
       setTokenState(null)
       setUser(null)
+
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        window.location.href = "/auth/login"
+      }, 1500)
     })
-    
+
     // Component kaldırıldığında handler'ı temizle
     return () => {
       setUnauthorizedHandler(null)

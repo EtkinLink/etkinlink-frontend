@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { api } from "@/lib/api-client"
 import Link from "next/link"
 import { useI18n } from "@/lib/i18n"
+import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -57,6 +58,7 @@ export default function ProfilePage() {
   const { user, isLoading: authLoading, refreshUser } = useAuth()
   const router = useRouter()
   const { t } = useI18n()
+  const { toast } = useToast()
 
   const [isMounted, setIsMounted] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -134,18 +136,23 @@ export default function ProfilePage() {
     if (!authLoading && !user) {
       router.push("/auth/login")
     } else if (user) {
-      setFormData({
-        username: user.username,
-        name: user.name,
-        university_id: (user as any).university_id?.toString() || "none",
-      })
-
       fetchMyEvents()
       fetchMyOwnedEvents()
       fetchMyClubs()
       fetchUniversities()
     }
-  }, [user, authLoading, isMounted, router, fetchUniversities])
+  }, [isMounted, authLoading, router, fetchUniversities])
+
+  // Separate useEffect to update formData when user changes
+  useEffect(() => {
+    if (user && !isEditing) {
+      setFormData({
+        username: user.username,
+        name: user.name,
+        university_id: (user as any).university_id?.toString() || "none",
+      })
+    }
+  }, [user?.username, user?.name, user?.university_id, isEditing])
 
   const handleDeleteEvent = async (eventId: number) => {
     if (!confirm("Are you sure you want to delete this event?")) return
@@ -184,13 +191,25 @@ export default function ProfilePage() {
       }
 
       await api.updateProfile(payload)
-      setIsEditing(false)
 
+      // Refresh user data from backend
       if (refreshUser) {
         await refreshUser()
       }
+
+      setIsEditing(false)
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully!",
+        variant: "default",
+      })
     } catch (error: any) {
-      alert(error.message || "Failed to update profile")
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      })
     } finally {
       setIsSaving(false)
     }

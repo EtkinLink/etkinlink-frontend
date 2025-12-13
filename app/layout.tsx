@@ -5,6 +5,7 @@ import "./globals.css"
 import { Suspense } from "react"
 import { AuthProvider } from "@/lib/auth-context"
 import { I18nProvider } from "@/lib/i18n"
+import { Toaster } from "@/components/ui/toaster"
 import { cookies } from "next/headers"
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default async function RootLayout({
         <I18nProvider initialLocale={initialLocale}>
           <AuthProvider>
             <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+            <Toaster />
           </AuthProvider>
         </I18nProvider>
         <Analytics />

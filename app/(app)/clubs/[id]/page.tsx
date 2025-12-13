@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -58,11 +59,11 @@ function formatEventDate(iso: string | null) {
 
 export default function ClubDetailPage() {
   const { user } = useAuth()
-  // const router = useRouter() // ✅ DÜZELTME
-  // const params = useParams() // ✅ DÜZELTME
-  
-  // ✅ DÜZELTME: ID'yi URL'den almak için state eklendi
-  const [clubId, setClubId] = useState<number | null>(null)
+  const router = useRouter()
+  const params = useParams()
+  const { toast } = useToast()
+
+  const clubId = params.id ? Number(params.id) : null
   
   const [club, setClub] = useState<ClubDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -71,26 +72,16 @@ export default function ClubDetailPage() {
   const [membershipStatus, setMembershipStatus] = useState<ApplicationStatus>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // 1. Hydration ve URL'den ID'yi çekme
+  // 1. Hydration check
   useEffect(() => {
     setIsMounted(true)
-    // ✅ DÜZELTME: useParams() yerine window.location kullan
-    try {
-      // (örn: "/clubs/123")
-      const pathSegments = window.location.pathname.split('/')
-      const idStr = pathSegments[pathSegments.length - 1]
-      const id = Number(idStr)
-      if (id && !isNaN(id)) {
-        setClubId(id)
-      } else {
-        console.error("Invalid Club ID from URL")
-        window.location.href = "/clubs" // Hatalı ID ise kulüpler sayfasına at
-      }
-    } catch (e) {
-      console.error(e)
-      window.location.href = "/clubs"
+
+    // Validate club ID
+    if (!clubId || isNaN(clubId)) {
+      console.error("Invalid Club ID from URL")
+      router.push("/clubs")
     }
-  }, []) // Sadece mount anında çalışır
+  }, [clubId, router])
 
   // 2. Ana kulüp verisini çek
   useEffect(() => {
@@ -103,19 +94,24 @@ export default function ClubDetailPage() {
         setClub(clubData)
       } catch (err) {
         console.error("Failed to fetch club data:", err)
-        window.location.href = "/clubs" // Kulüp bulunamazsa (404)
+        toast({
+          title: "Club Not Found",
+          description: "The requested club could not be found.",
+          variant: "destructive",
+        })
+        router.push("/clubs")
       } finally {
         setIsLoading(false)
       }
     }
     fetchClubData()
-    
-  }, [isMounted, clubId])
+
+  }, [isMounted, clubId, router, toast])
 
   // 3. Kullanıcı veya Kulüp değiştiğinde, üyelik/başvuru durumunu çek
   useEffect(() => {
-    if (!isMounted || !clubId || !user) {
-      setMembershipStatus(null) // Kullanıcı giriş yapmamışsa durumu sıfırla
+    if (!isMounted || !clubId || !user || !club) {
+      if (!user) setMembershipStatus(null) // Kullanıcı giriş yapmamışsa durumu sıfırla
       return
     }
 
@@ -123,35 +119,71 @@ export default function ClubDetailPage() {
       try {
         // ✅ GÜNCELLEME: Backend'e eklediğimiz yeni endpoint'i çağır
         const statusData = await api.getMyClubApplicationStatus(clubId)
+        console.log("🔍 Club membership status from backend:", statusData)
         let status: ApplicationStatus = statusData.status
         // Owner isen otomatik ADMIN kabul et
-        if (club && club.owner_username && club.owner_username === user.username) {
+        if (club.owner_username === user.username) {
           status = "ADMIN"
         }
+        console.log("✅ Setting membershipStatus to:", status)
         setMembershipStatus(status)
       } catch (err) {
         console.error("Failed to fetch membership status:", err)
       }
     }
-    
+
     fetchMembershipStatus()
 
-  }, [isMounted, clubId, user, club])
+  }, [isMounted, clubId, user?.username, club?.owner_username])
 
   
   // --- EVENT HANDLERS ---
 
   const handleJoin = async () => {
-    if (!user) { window.location.href = "/auth/login"; return } 
+    if (!user) { router.push("/auth/login"); return }
     if (!clubId) return
 
     setIsActionLoading(true)
     try {
       await api.joinClub(clubId)
-      setMembershipStatus('MEMBER') // Durumu anında güncelle
-      setClub(prev => prev ? { ...prev, member_count: prev.member_count + 1 } : null)
+
+      // Check join method to determine new status
+      if (club?.join_method === 'OPEN') {
+        setMembershipStatus('MEMBER')
+        setClub(prev => prev ? { ...prev, member_count: prev.member_count + 1 } : null)
+        toast({
+          title: "Joined Successfully",
+          description: "You are now a member of this club!",
+          variant: "success",
+        })
+      } else {
+        setMembershipStatus('PENDING')
+        toast({
+          title: "Application Submitted",
+          description: "Your application has been submitted. Please wait for approval.",
+          variant: "default",
+        })
+      }
     } catch (err: any) {
-      alert(err.message || "Failed to join club")
+      // Check if already a member (409 Conflict)
+      if (err.status === 409 || err.message?.includes("already")) {
+        // Refresh membership status from server
+        try {
+          const statusData = await api.getMyClubApplicationStatus(clubId)
+          setMembershipStatus(statusData.status)
+        } catch {}
+        toast({
+          title: "Already a Member",
+          description: "You are already a member of this club.",
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: "Join Failed",
+          description: err.message || "Failed to join club",
+          variant: "destructive",
+        })
+      }
     } finally {
       setIsActionLoading(false)
     }
@@ -163,32 +195,51 @@ export default function ClubDetailPage() {
     setIsActionLoading(true)
     try {
       await api.leaveClub(clubId)
-      setMembershipStatus(null) // Durumu anında güncelle
+      setMembershipStatus(null)
       setClub(prev => prev ? { ...prev, member_count: prev.member_count - 1 } : null)
+      toast({
+        title: "Left Club",
+        description: "You have left the club.",
+        variant: "default",
+      })
     } catch (err: any) {
-      alert(err.message || "Failed to leave club")
+      toast({
+        title: "Leave Failed",
+        description: err.message || "Failed to leave club",
+        variant: "destructive",
+      })
     } finally {
       setIsActionLoading(false)
     }
   }
 
   const handleApply = async () => {
-    if (!user) { window.location.href = "/auth/login"; return }
+    if (!user) { router.push("/auth/login"); return }
     if (!clubId) return
 
     setIsActionLoading(true)
     try {
-      // Not: "why_me" (neden ben?) alanı için bir modal/popup açılabilir
       await api.createClubApplication(clubId)
-      alert("Application submitted! Please wait for approval.")
       setMembershipStatus("PENDING")
+      toast({
+        title: "Application Submitted",
+        description: "Your application has been submitted. Please wait for approval.",
+        variant: "success",
+      })
     } catch (err: any) {
-      // Eğer backend "Already applied" ile 409 dönerse durumu beklemede göster
       if (err?.status === 409) {
         setMembershipStatus("PENDING")
-        alert("You already have a pending application.")
+        toast({
+          title: "Already Applied",
+          description: "You already have a pending application.",
+          variant: "default",
+        })
       } else {
-        alert(err.message || "Failed to submit application")
+        toast({
+          title: "Application Failed",
+          description: err.message || "Failed to submit application",
+          variant: "destructive",
+        })
       }
     } finally {
       setIsActionLoading(false)
@@ -200,9 +251,18 @@ export default function ClubDetailPage() {
     setIsDeleting(true)
     try {
       await api.deleteClub(clubId)
-      window.location.href = "/clubs"
+      toast({
+        title: "Club Deleted",
+        description: "The club has been successfully deleted.",
+        variant: "success",
+      })
+      setTimeout(() => router.push("/clubs"), 1000)
     } catch (error: any) {
-      alert(error.message || "Failed to delete club")
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete club",
+        variant: "destructive",
+      })
       setIsDeleting(false)
     }
   }

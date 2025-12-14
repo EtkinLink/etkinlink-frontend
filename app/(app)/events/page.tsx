@@ -85,10 +85,11 @@ export default function EventsPage() {
   const [selectedType, setSelectedType] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [showCompletedEvents, setShowCompletedEvents] = useState(false)
   const [page, setPage] = useState(1)
   const [viewMode, setViewMode] = useState<"all" | "nearby">("all")
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
-  
+
   const [isMounted, setIsMounted] = useState(false)
   const [locationReady, setLocationReady] = useState(false)
 
@@ -141,28 +142,46 @@ export default function EventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true)
     try {
-      // Backend parametreleri: page, per_page, sort, order, type_id, q, starts_at_from, starts_at_to
-      const params: any = { page, per_page: PER_PAGE, sort: "starts_at", order: "desc" }
+      // Fetch more events to handle client-side filtering with pagination
+      const params: any = { page: 1, per_page: 100, sort: "starts_at", order: "desc" }
+
+      // Filtreleme parametrelerini ekle
+      if (selectedType !== "all") params.type_id = selectedType
+      if (searchQuery) params.q = searchQuery
+      if (dateFrom) params.starts_at_from = dateFrom
+      if (dateTo) params.starts_at_to = dateTo
+
+      let allEvents: Event[] = []
 
       if (viewMode === "nearby" && userLocation) {
         const response = await api.getNearbyEvents(userLocation.lat, userLocation.lng, 10, params)
-        setEvents(response.items || [])
+        allEvents = response.items || []
       } else {
-        // Filtreleme parametrelerini ekle
-        if (selectedType !== "all") params.type_id = selectedType
-        if (searchQuery) params.q = searchQuery
-        if (dateFrom) params.starts_at_from = dateFrom
-        if (dateTo) params.starts_at_to = dateTo
-
         const response = await api.getEvents(params)
-        setEvents(response.items || [])
+        allEvents = response.items || []
       }
+
+      // Client-side status filtering
+      const filteredEvents = showCompletedEvents
+        ? allEvents.filter((ev: Event) =>
+            ev.status === "COMPLETED" || ev.status === "CANCELLED"
+          )
+        : allEvents.filter((ev: Event) =>
+            ev.status !== "COMPLETED" && ev.status !== "CANCELLED"
+          )
+
+      // Client-side pagination
+      const startIndex = (page - 1) * PER_PAGE
+      const endIndex = startIndex + PER_PAGE
+      const paginatedEvents = filteredEvents.slice(startIndex, endIndex)
+
+      setEvents(paginatedEvents)
     } catch (err) {
       console.error("Failed to fetch events:", err)
     } finally {
       setIsLoading(false)
     }
-  }, [page, viewMode, userLocation, selectedType, searchQuery, dateFrom, dateTo])
+  }, [page, viewMode, userLocation, selectedType, searchQuery, dateFrom, dateTo, showCompletedEvents])
 
   // --- Fetch Events ---
   useEffect(() => {
@@ -183,6 +202,7 @@ export default function EventsPage() {
     setSelectedType("all")
     setDateFrom("")
     setDateTo("")
+    setShowCompletedEvents(false)
     setPage(1)
   }
 
@@ -199,7 +219,7 @@ export default function EventsPage() {
 
   if (!user) return null
 
-  const hasActiveFilters = searchQuery || selectedType !== "all" || dateFrom || dateTo
+  const hasActiveFilters = searchQuery || selectedType !== "all" || dateFrom || dateTo || showCompletedEvents
 
   return (
     <main className="flex-1 bg-muted/30 min-h-screen">
@@ -371,6 +391,19 @@ export default function EventsPage() {
                       <span className="text-xs text-muted-foreground">{t("common.to")}</span>
                       <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
                     </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 pt-2">
+                    <input
+                      type="checkbox"
+                      id="showCompleted"
+                      checked={showCompletedEvents}
+                      onChange={(e) => setShowCompletedEvents(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <label htmlFor="showCompleted" className="text-sm cursor-pointer">
+                      Show Only Completed Events
+                    </label>
                   </div>
 
                   <div className="flex gap-3 pt-2">

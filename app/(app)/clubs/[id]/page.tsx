@@ -22,6 +22,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 // --- ARAYÜZLER (TYPES) ---
 
@@ -71,6 +81,8 @@ export default function ClubDetailPage() {
   const [isMounted, setIsMounted] = useState(false)
   const [membershipStatus, setMembershipStatus] = useState<ApplicationStatus>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showApplicationDialog, setShowApplicationDialog] = useState(false)
+  const [applicationMotivation, setApplicationMotivation] = useState("")
 
   // 1. Hydration check
   useEffect(() => {
@@ -91,6 +103,7 @@ export default function ClubDetailPage() {
       setIsLoading(true)
       try {
         const clubData = await api.getClub(clubId)
+        console.log("🔍 Club join_method from backend:", clubData.join_method)
         setClub(clubData)
       } catch (err) {
         console.error("Failed to fetch club data:", err)
@@ -219,8 +232,10 @@ export default function ClubDetailPage() {
 
     setIsActionLoading(true)
     try {
-      await api.createClubApplication(clubId)
+      await api.createClubApplication(clubId, applicationMotivation)
       setMembershipStatus("PENDING")
+      setShowApplicationDialog(false)
+      setApplicationMotivation("")
       toast({
         title: "Application Submitted",
         description: "Your application has been submitted. Please wait for approval.",
@@ -229,6 +244,7 @@ export default function ClubDetailPage() {
     } catch (err: any) {
       if (err?.status === 409) {
         setMembershipStatus("PENDING")
+        setShowApplicationDialog(false)
         toast({
           title: "Already Applied",
           description: "You already have a pending application.",
@@ -329,9 +345,9 @@ export default function ClubDetailPage() {
       // 4b: Henüz başvurmamış
       else {
         return (
-          <Button onClick={handleApply} disabled={isActionLoading} className="w-full">
+          <Button onClick={() => setShowApplicationDialog(true)} disabled={isActionLoading} className="w-full">
             <FileText className="mr-2 h-4 w-4" />
-            {isActionLoading ? "Applying..." : "Apply to Join"}
+            Apply to Join
           </Button>
         )
       }
@@ -455,6 +471,43 @@ export default function ClubDetailPage() {
 
         </div>
       </div>
+
+      {/* Application Dialog */}
+      <Dialog open={showApplicationDialog} onOpenChange={setShowApplicationDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply to Join {club.name}</DialogTitle>
+            <DialogDescription>
+              Please provide a brief message explaining why you want to join this club.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="motivation">Your Message *</Label>
+              <Textarea
+                id="motivation"
+                placeholder="Tell us why you want to join this club..."
+                value={applicationMotivation}
+                onChange={(e) => setApplicationMotivation(e.target.value)}
+                rows={4}
+                required
+              />
+              <p className="text-xs text-muted-foreground">* Required: Explain why you want to join this organization</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApplicationDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApply}
+              disabled={isActionLoading || !applicationMotivation.trim()}
+            >
+              {isActionLoading ? "Submitting..." : "Submit Application"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

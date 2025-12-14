@@ -14,8 +14,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-// ✅ Katılım yöntemi seçimi için
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 // İkonlar
 import { ArrowLeft, AlertCircle } from "lucide-react"
@@ -31,7 +29,6 @@ interface ClubFormData {
   name: string
   description: string
   university_id: string // Select'in value'su string olmalı
-  join_method: "OPEN" | "APPLICATION_ONLY" // ✅ YENİ ALAN
 }
 
 export default function CreateClubPage() {
@@ -43,7 +40,6 @@ export default function CreateClubPage() {
     name: "",
     description: "",
     university_id: "",
-    join_method: "OPEN", // ✅ Varsayılan
   })
   
   const [isSubmitting, setIsSubmitting] = useState(false) // Form gönderme state'i
@@ -100,11 +96,6 @@ export default function CreateClubPage() {
   const handleSelectChange = (value: string) => {
     setFormData(prev => ({ ...prev, university_id: value }))
   }
-  
-  // ✅ YENİ: RadioGroup değişimini state'e bağla
-  const handleRadioChange = (value: string) => {
-    setFormData(prev => ({ ...prev, join_method: value as "OPEN" | "APPLICATION_ONLY" }))
-  }
 
   // Formu gönder
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -123,8 +114,9 @@ export default function CreateClubPage() {
       const payload = {
         name: formData.name,
         description: formData.description,
+        // join_method: "APPLICATION_ONLY" as const, // Backend kabul etmiyor, backend'de default APPLICATION_ONLY olmalı
       }
-      
+
       await api.createClub(payload)
       
       // Başarılı! Kulüpler sayfasına yönlendir.
@@ -214,30 +206,6 @@ export default function CreateClubPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              
-              {/* ✅ YENİ: Katılım Yöntemi (RadioGroup) */}
-              <div className="space-y-3 rounded-md border p-4">
-                <Label>Join Method</Label>
-                <RadioGroup
-                  value={formData.join_method}
-                  onValueChange={handleRadioChange}
-                  className="flex gap-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="OPEN" id="r_open" />
-                    <Label htmlFor="r_open">Open</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="APPLICATION_ONLY" id="r_app" />
-                    <Label htmlFor="r_app">Application Only</Label>
-                  </div>
-                </RadioGroup>
-                <p className="text-xs text-muted-foreground">
-                  {formData.join_method === 'OPEN'
-                    ? "Anyone can join this club directly."
-                    : "Users must apply and be approved by an admin."}
-                </p>
               </div>
 
               {/* Açıklama */}

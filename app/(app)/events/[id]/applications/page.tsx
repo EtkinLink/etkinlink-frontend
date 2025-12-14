@@ -25,12 +25,14 @@ interface Application {
   why_me: string | null
   status: "PENDING" | "APPROVED" | "REJECTED" | string
   source?: "APPLICATION" | "PARTICIPANT"
+  attendance_status?: "ATTENDED" | "NO_SHOW" | null
 }
 
 interface Participant {
   id: number
   username: string
   status: string | null
+  attendance_status?: "ATTENDED" | "NO_SHOW" | null
 }
 
 const normalizeStatus = (status: string | null | undefined) => {
@@ -79,17 +81,15 @@ export default function ApplicationsPage() {
   const fetchApplications = useCallback(async () => {
     setIsLoading(true) 
     try {
-      console.log("Fetching applications for eventId:", eventId)
       const [applicationsData, eventData] = await Promise.all([
         api.getApplications(eventId!),
         api.getEvent(eventId!)
       ])
-      console.log("Applications data received:", applicationsData)
-      console.log("Event data received:", eventData)
       
       setApplications(
-        applicationsData.map((app: Application) => ({
+        applicationsData.map((app: any) => ({
           ...app,
+          id: app.id || app.application_id, // Backend might return application_id instead of id
           status: normalizeStatus(app.status) as Application["status"],
           source: "APPLICATION",
         }))
@@ -99,6 +99,7 @@ export default function ApplicationsPage() {
           id: participant.id,
           username: participant.username,
           status: participant.status ?? null,
+          attendance_status: participant.status ?? "NO_SHOW", // participant.status is attendance status
         }))
       )
     } catch (error: any) {
@@ -129,11 +130,25 @@ export default function ApplicationsPage() {
   const handleUpdateStatus = async (applicationId: number, status: "APPROVED" | "REJECTED") => {
     setProcessingId(applicationId)
     try {
-      // ✅ DÜZELTME: TypeScript tipini garanti eden atama (Artık Vercel'de hata vermez)
       await api.patchApplication(applicationId, status)
       await fetchApplications() // Listeyi yenile (katılımcı listesi de güncellensin)
     } catch (error: any) {
       alert(error.message || "Failed to update application")
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  // Attendance durumunu güncelleme (NO_SHOW <-> ATTENDED)
+  const handleToggleAttendance = async (userId: number, currentStatus: string) => {
+    if (!eventId) return
+    setProcessingId(userId)
+    try {
+      const newStatus = currentStatus === "ATTENDED" ? "NO_SHOW" : "ATTENDED"
+      await api.setAttendance(eventId, userId, newStatus)
+      await fetchApplications() // Listeyi yenile
+    } catch (error: any) {
+      alert(error.message || "Failed to update attendance")
     } finally {
       setProcessingId(null)
     }
@@ -159,6 +174,7 @@ export default function ApplicationsPage() {
       why_me: null,
       status: normalizeStatus(participant.status) as Application["status"],
       source: "PARTICIPANT" as const,
+      attendance_status: participant.attendance_status ?? "NO_SHOW",
     }))
     .filter((participant) => isApprovedStatus(participant.status))
 
@@ -289,8 +305,8 @@ export default function ApplicationsPage() {
                               </div>
                             )}
                             {!application.why_me && isParticipantEntry && (
-                              <p className="text-sm text-muted-foreground">
-                                Already part of the event. Manage attendance from the event detail page.
+                              <p className="text-sm text-muted-foreground mb-2">
+                                Already part of the event.
                               </p>
                             )}
                             {!isParticipantEntry && (
@@ -309,6 +325,53 @@ export default function ApplicationsPage() {
                       </CardContent>
                     </Card>
                   )})}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Attendance Management */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Attendance Management</CardTitle>
+              <CardDescription>Mark participants as attended or no-show</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {approvedApplications.length === 0 ? (
+                <p className="text-center text-muted-foreground">No participants to track</p>
+              ) : (
+                <div className="space-y-4">
+                  {approvedApplications.map((application) => {
+                    const entryKey = `attendance-${application.source ?? "application"}-${application.user_id ?? application.id}`
+                    return (
+                      <div key={entryKey} className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="flex items-center gap-4">
+                          <Avatar>
+                            <AvatarFallback>{application.username[0].toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold">{application.username}</p>
+                            <div className="flex gap-2 mt-1">
+                              {application.attendance_status && (
+                                <Badge variant={application.attendance_status === "ATTENDED" ? "default" : "secondary"}>
+                                  {application.attendance_status}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={application.attendance_status === "ATTENDED" ? "outline" : "default"}
+                          onClick={() => handleToggleAttendance(application.user_id, application.attendance_status ?? "NO_SHOW")}
+                          disabled={processingId === application.user_id}
+                        >
+                          <Check className="mr-2 h-4 w-4" />
+                          {application.attendance_status === "ATTENDED" ? "Mark as No Show" : "Mark as Attended"}
+                        </Button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </CardContent>

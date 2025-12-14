@@ -197,68 +197,55 @@ export const api = {
   getMyClubs: async () => {
     try {
       const userId = getUserIdFromToken()
+      const token = getToken()
+      const username = decodeJwtPayload(token)?.username
       if (!userId) return []
 
-      // Get all organizations
+      // Get all organizations to check ownership
       const allOrgsResp = await fetchAPI<any>("/organizations")
       const allOrgs = mapPaginatedResponse(allOrgsResp).items ?? []
 
-      // For each organization, fetch details to get members
-      const myClubs: any[] = []
-
-      for (const org of allOrgs) {
-        try {
-          // Fetch organization details without triggering global 401 handler
-          const url = `${API_BASE_URL}/organizations/${org.id}`
-          const token = getToken()
-          const headers: HeadersInit = {
-            "Content-Type": "application/json",
-          }
-          if (token) {
-            (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`
-          }
-
-          const response = await fetch(url, { headers })
-
-          // If 401 or 403, skip this org (user doesn't have access)
-          if (response.status === 401 || response.status === 403) {
-            continue
-          }
-
-          if (!response.ok) {
-            continue
-          }
-
-          const orgData = await response.json()
-          const members = Array.isArray(orgData.members) ? orgData.members : []
-
-          // Check if current user is a member OR owner
-          let myMembership = members.find((m: any) => m.id === userId)
-
-          // If not in members list, check if user is the owner
-          if (!myMembership && orgData.owner_user_id === userId) {
-            myMembership = { id: userId, role: 'ADMIN' }
-          }
-
-          if (myMembership) {
-            myClubs.push({
-              id: orgData.id,
-              name: orgData.name,
-              description: orgData.description,
-              role: myMembership.role || 'ADMIN',
-              member_count: members.length,
-            })
-          }
-        } catch (err) {
-          // Skip this organization if any error occurs
-          continue
-        }
+      // Also get user's member organizations
+      let memberOrgs: any[] = []
+      try {
+        const resp = await fetchAPI<any>("/users/me/organizations")
+        memberOrgs = mapPaginatedResponse(resp).items ?? []
+      } catch (err) {
+        console.log("Could not fetch member organizations:", err)
       }
 
-      return myClubs
+      // Find organizations where user is owner or member
+      const myClubsMap = new Map<number, any>()
+
+      // Add organizations where user is owner
+      allOrgs.forEach((org: any) => {
+        if (org.owner_username === username) {
+          myClubsMap.set(org.id, {
+            id: org.id,
+            name: org.name,
+            description: org.description,
+            role: 'ADMIN',
+            member_count: org.member_count ?? 0,
+          })
+        }
+      })
+
+      // Add organizations where user is a member
+      memberOrgs.forEach((org: any) => {
+        if (!myClubsMap.has(org.id)) {
+          myClubsMap.set(org.id, {
+            id: org.id,
+            name: org.name,
+            description: org.description,
+            role: org.role || (org.relation === 'ADMIN' ? 'ADMIN' : 'MEMBER'),
+            member_count: org.member_count ?? 0,
+          })
+        }
+      })
+
+      return Array.from(myClubsMap.values())
     } catch (err) {
-      console.error("getMyClubs failed; backend SQL hatası olabilir:", err)
-      // Backend UNION collation hatası yüzünden UI'yi kırmamak için boş liste dön.
+      console.error("getMyClubs failed:", err)
       return []
     }
   },
@@ -300,19 +287,10 @@ export const api = {
     }))
   },
 
-  getMyOwnedEvents: async (perPage = 50) => {
-    // Get events where current user is the owner
-    const userId = getUserIdFromToken()
-    if (!userId) return []
-
-    const params: Record<string, any> = {
-      owner_id: userId,
-      page: 1,
-      per_page: perPage,
-    }
-    const query = new URLSearchParams(params as any).toString()
-    const resp = await fetchAPI(`/events${query ? '?' + query : ''}`)
-    return mapPaginatedResponse(resp).items ?? []
+  getMyOwnedEvents: async () => {
+    // TODO: Backend needs to return owner_user_id or owner_username in /events endpoint
+    // For now, return empty array until backend is fixed
+    return []
   },
   
   createEvent: (data: any) => {
@@ -423,11 +401,12 @@ export const api = {
     const resp = await fetchAPI(`/events/${eventId}/applications`)
     return mapPaginatedResponse(resp).items
   },
-  patchApplication: (applicationId: number, status: "APPROVED" | "REJECTED") =>
-    fetchAPI(`/applications/${applicationId}/status`, {
+  patchApplication: (applicationId: number, status: "APPROVED" | "REJECTED") => {
+    return fetchAPI(`/applications/${applicationId}/status`, {
       method: "PUT",
-      body: JSON.stringify({ status }),
-    }),
+      body: JSON.stringify({ status })
+    })
+  },
 
   // ---------- Ratings ----------
   getRatings: (eventId: number) => fetchAPI(`/events/${eventId}/ratings`),
@@ -488,7 +467,7 @@ export const api = {
       owner_username: data.owner_username,
       university_name: "",
       member_count: Array.isArray(data.members) ? data.members.length : 0,
-      join_method: data.join_method ?? "OPEN",
+      join_method: data.join_method ?? "APPLICATION_ONLY", // Default APPLICATION_ONLY
       status: data.status,
       photo_url: data.photo_url,
       events: Array.isArray(data.events)
@@ -512,7 +491,7 @@ export const api = {
         : [],
     }
   },
-  createClub: (data: { name: string; description?: string }) =>
+  createClub: (data: { name: string; description?: string; join_method?: "OPEN" | "APPLICATION_ONLY" }) =>
     fetchAPI("/organizations", { method: "POST", body: JSON.stringify(data) }),
   joinClub: async (clubId: number) =>
     fetchAPI(`/organizations/${clubId}/apply`, { method: "POST", body: JSON.stringify({ motivation: "" }) }),

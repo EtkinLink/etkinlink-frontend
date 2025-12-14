@@ -226,9 +226,10 @@ export default function ProfilePage() {
     )
   }
 
-  // Separate events
-  const upcomingEvents = myEvents.filter(e => new Date(e.starts_at) > new Date())
-  const pastEvents = myEvents.filter(e => new Date(e.starts_at) <= new Date())
+  // Separate events - exclude owned events from myEvents
+  const participantEvents = myEvents.filter(e => e.participation_status !== 'OWNER')
+  const upcomingEvents = participantEvents.filter(e => new Date(e.starts_at) > new Date())
+  const pastEvents = participantEvents.filter(e => new Date(e.starts_at) <= new Date())
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
@@ -369,7 +370,7 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-none">
                       <CardContent className="pt-4 pb-4 text-center">
-                        <p className="text-2xl font-bold text-indigo-600">{myEvents.length}</p>
+                        <p className="text-2xl font-bold text-indigo-600">{participantEvents.length}</p>
                         <p className="text-xs text-muted-foreground mt-1">Joined</p>
                       </CardContent>
                     </Card>
@@ -397,7 +398,7 @@ export default function ProfilePage() {
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="events">
                   <Calendar className="mr-2 h-4 w-4" />
-                  Events ({myEvents.length})
+                  Events ({participantEvents.length})
                 </TabsTrigger>
                 <TabsTrigger value="clubs">
                   <Building2 className="mr-2 h-4 w-4" />
@@ -719,7 +720,7 @@ export default function ProfilePage() {
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-center p-4 rounded-lg bg-muted/50">
-                        <p className="text-2xl font-bold">{myEvents.length}</p>
+                        <p className="text-2xl font-bold">{participantEvents.length}</p>
                         <p className="text-sm text-muted-foreground">Events Joined</p>
                       </div>
                       <div className="text-center p-4 rounded-lg bg-muted/50">

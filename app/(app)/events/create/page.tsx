@@ -46,10 +46,13 @@ interface EventFormData {
 export default function CreateEventPage() {
   const { user, isLoading: authLoading } = useAuth()
   // const router = useRouter() // ✅ DÜZELTME: Kaldırıldı
-  
+
   const [eventTypes, setEventTypes] = useState<any[]>([])
   const [myClubs, setMyClubs] = useState<MyClub[]>([]) // ✅ YENİ
-  
+
+  // Filter clubs where user is ADMIN
+  const adminClubs = myClubs.filter((club) => club.role === 'ADMIN')
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null) // Hata mesajı state'i
   
@@ -99,7 +102,11 @@ export default function CreateEventPage() {
       .catch((err) => console.error("Failed to fetch event types:", err))
 
     api.getMyClubs()
-      .then((clubs) => setMyClubs(clubs ?? []))
+      .then((clubs) => {
+        console.log("🔍 getMyClubs returned:", clubs)
+        console.log("🔍 Admin clubs:", clubs?.filter((c) => c.role === 'ADMIN'))
+        setMyClubs(clubs ?? [])
+      })
       .catch((err) => console.warn("Kulüp listesi alınamadı, kişisel modda devam:", err))
   }
 
@@ -182,10 +189,6 @@ export default function CreateEventPage() {
   if (!user) {
     return null
   }
-  
-  // Sadece Admin olan kulüpleri filtrele
-  const adminClubs = myClubs.filter(c => c.role === 'ADMIN')
-
 
   return (
     <div className="min-h-screen bg-muted/30">

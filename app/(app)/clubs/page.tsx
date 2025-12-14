@@ -53,16 +53,23 @@ export default function ClubsPage() {
       try {
         // API'dan ham listeyi çek
         const clubsData = await api.getClubs()
-        
+
         // Search filtresi uygula
         let filtered = clubsData
         if (search.trim()) {
-          filtered = clubsData.filter((c: any) => 
+          filtered = filtered.filter((c: any) =>
             c.name?.toLowerCase().includes(search.toLowerCase()) ||
             c.description?.toLowerCase().includes(search.toLowerCase())
           )
         }
-        
+
+        // University filtresi uygula
+        if (selectedUniversity !== "all") {
+          filtered = filtered.filter((c: any) =>
+            c.university_id?.toString() === selectedUniversity
+          )
+        }
+
         setClubs(filtered)
       } catch (err) {
         console.error("Failed to fetch clubs:", err)
@@ -71,7 +78,7 @@ export default function ClubsPage() {
       }
     }
     fetchClubs()
-  }, [search]) 
+  }, [search, selectedUniversity]) 
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -98,7 +105,7 @@ export default function ClubsPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <University className="h-5 w-5 text-muted-foreground shrink-0" />
-                <Select value={selectedUniversity} onValueChange={setSelectedUniversity} disabled>
+                <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
                   <SelectTrigger className="w-full sm:w-[240px]">
                     <SelectValue placeholder={t("clubs.filter.placeholder")} />
                   </SelectTrigger>

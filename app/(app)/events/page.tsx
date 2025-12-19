@@ -13,8 +13,24 @@ import {
   Search,
   Filter,
   Map,
-  Plus, 
+  Plus,
+  Dumbbell,
+  Music,
+  Palette,
+  GraduationCap,
+  Briefcase,
+  Code,
+  HeartHandshake,
+  Utensils,
+  PartyPopper,
+  Gamepad2,
+  Leaf,
+  Camera,
+  Theater,
+  Trophy,
+  Sparkles,
 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -69,6 +85,32 @@ function formatEventDate(iso: string, dateLocale: string) {
     minute: "2-digit",
     timeZone: "UTC",
   }).format(new Date(iso))
+}
+
+const eventTypeIconMatchers: Array<{ icon: LucideIcon; keywords: string[] }> = [
+  { icon: Dumbbell, keywords: ["sport", "spor", "fitness", "athletic"] },
+  { icon: Trophy, keywords: ["tournament", "competition", "yaris", "league"] },
+  { icon: Music, keywords: ["music", "konser", "concert", "dj"] },
+  { icon: Theater, keywords: ["theater", "theatre", "drama", "sahne"] },
+  { icon: Palette, keywords: ["art", "sanat", "design", "exhibit", "gallery"] },
+  { icon: GraduationCap, keywords: ["education", "lecture", "seminar", "talk", "training", "egitim"] },
+  { icon: Briefcase, keywords: ["career", "kariyer", "business", "startup", "network"] },
+  { icon: Code, keywords: ["tech", "code", "coding", "software", "yazilim", "developer"] },
+  { icon: HeartHandshake, keywords: ["volunteer", "charity", "community", "sosyal", "help"] },
+  { icon: Utensils, keywords: ["food", "dinner", "lunch", "yemek", "cuisine"] },
+  { icon: PartyPopper, keywords: ["party", "festival", "celebration", "fun"] },
+  { icon: Gamepad2, keywords: ["game", "gaming", "esports", "oyun"] },
+  { icon: Leaf, keywords: ["environment", "eco", "green", "sustainability", "nature"] },
+  { icon: Camera, keywords: ["photo", "photography", "camera", "media"] },
+]
+
+function getEventTypeIcon(eventType: string | null | undefined) {
+  if (!eventType) return Sparkles
+  const normalized = eventType.toLowerCase()
+  const match = eventTypeIconMatchers.find(({ keywords }) =>
+    keywords.some((keyword) => normalized.includes(keyword))
+  )
+  return match?.icon ?? Sparkles
 }
 
 export default function EventsPage() {
@@ -282,45 +324,51 @@ export default function EventsPage() {
             ) : (
               <>
                 <div className="grid gap-6 sm:grid-cols-2">
-                  {events.map((ev) => (
-                    <Link key={ev.id} href={`/events/${ev.id}`}>
-                      <Card className="h-full transition hover:shadow-md hover:border-indigo-200">
-                        <CardHeader>
-                          <div className="mb-2 flex items-start justify-between">
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant="secondary">{ev.event_type}</Badge>
-                              {ev.join_method === "APPLICATION_ONLY" && (
-                                <Badge variant="outline">{t("events.card.applicationRequired")}</Badge>
+                  {events.map((ev) => {
+                    const EventTypeIcon = getEventTypeIcon(ev.event_type)
+                    return (
+                      <Link key={ev.id} href={`/events/${ev.id}`}>
+                        <Card className="h-full transition hover:shadow-md hover:border-indigo-200">
+                          <CardHeader>
+                            <div className="mb-2 flex items-start justify-between">
+                              <div className="flex flex-wrap gap-2">
+                                <Badge variant="secondary" className="gap-1">
+                                  <EventTypeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {ev.event_type}
+                                </Badge>
+                                {ev.join_method === "APPLICATION_ONLY" && (
+                                  <Badge variant="outline">{t("events.card.applicationRequired")}</Badge>
+                                )}
+                              </div>
+                              {ev.price > 0 ? (
+                                <Badge variant="outline" className="border-green-600 text-green-600">${ev.price}</Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-blue-600 text-blue-600">{t("common.free")}</Badge>
                               )}
                             </div>
-                            {ev.price > 0 ? (
-                              <Badge variant="outline" className="border-green-600 text-green-600">${ev.price}</Badge>
-                            ) : (
-                              <Badge variant="outline" className="border-blue-600 text-blue-600">{t("common.free")}</Badge>
-                            )}
-                          </div>
-                          <CardTitle className="line-clamp-1">{ev.title}</CardTitle>
-                          <CardDescription className="line-clamp-2">{ev.explanation}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-sm text-muted-foreground space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 shrink-0" />
-                            <span>{formatEventDate(ev.starts_at, dateLocale)}</span>
-                          </div>
-                          {ev.location_name && (
+                            <CardTitle className="line-clamp-1">{ev.title}</CardTitle>
+                            <CardDescription className="line-clamp-2">{ev.explanation}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="text-sm text-muted-foreground space-y-2">
                             <div className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4 shrink-0" />
-                              <span className="truncate">{ev.location_name}</span>
+                              <Calendar className="h-4 w-4 shrink-0" />
+                              <span>{formatEventDate(ev.starts_at, dateLocale)}</span>
                             </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 shrink-0" />
-                            <span>{t("common.participants", { count: ev.participant_count })}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
+                            {ev.location_name && (
+                              <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 shrink-0" />
+                                <span className="truncate">{ev.location_name}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 shrink-0" />
+                              <span>{t("common.participants", { count: ev.participant_count })}</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    )
+                  })}
                 </div>
 
                 <div className="flex items-center justify-center gap-3 pt-4">

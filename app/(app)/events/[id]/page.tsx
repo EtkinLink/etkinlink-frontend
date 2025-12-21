@@ -21,7 +21,8 @@ import {
   Star,
   ArrowLeft,
   ExternalLink,
-  Clock, // İkon eklendi
+  Clock,
+  Flag, // Report icon
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -87,6 +88,10 @@ export default function EventDetailPage() {
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null)
   const [applicationReason, setApplicationReason] = useState("")
   const [isApplying, setIsApplying] = useState(false)
+
+  // Report state
+  const [reportReason, setReportReason] = useState("")
+  const [isReporting, setIsReporting] = useState(false)
 
   // Maps URL Calculation
   const mapsUrl = useMemo(() => {
@@ -344,6 +349,40 @@ export default function EventDetailPage() {
     }
   }
 
+  const handleReport = async () => {
+    if (!user) {
+      router.push("/auth/login")
+      return
+    }
+    if (!event || !reportReason.trim()) return
+    if (reportReason.trim().length < 10) {
+      toast({
+        title: "Invalid Report",
+        description: "Reason must be at least 10 characters",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsReporting(true)
+    try {
+      await api.reportEvent(event.id, reportReason.trim())
+      toast({
+        title: "Report Submitted",
+        description: "Thank you for your report. We will review it soon.",
+      })
+      setReportReason("")
+    } catch (error: any) {
+      toast({
+        title: "Report Failed",
+        description: error.message || "Failed to submit report",
+        variant: "destructive",
+      })
+    } finally {
+      setIsReporting(false)
+    }
+  }
+
   if (!isMounted || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -411,7 +450,7 @@ export default function EventDetailPage() {
                       <Badge variant="outline">Application Required</Badge>
                     )}
                   </div>
-                  {isOwner && (
+                  {isOwner ? (
                     <div className="flex gap-2">
                       <Link href={`/events/${event.id}/edit`}>
                         <Button size="sm" variant="outline">
@@ -442,6 +481,35 @@ export default function EventDetailPage() {
                         </AlertDialogContent>
                       </AlertDialog>
                     </div>
+                  ) : (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Flag className="mr-2 h-4 w-4" />
+                          Report
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Report Event</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Please provide a reason for reporting this event (minimum 10 characters).
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <Textarea
+                          placeholder="Describe why you are reporting this event..."
+                          value={reportReason}
+                          onChange={(e) => setReportReason(e.target.value)}
+                          className="min-h-[100px]"
+                        />
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => setReportReason("")}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleReport} disabled={isReporting || reportReason.trim().length < 10}>
+                            {isReporting ? "Submitting..." : "Submit Report"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
                 </div>
                 <CardTitle className="text-3xl">{event.title}</CardTitle>

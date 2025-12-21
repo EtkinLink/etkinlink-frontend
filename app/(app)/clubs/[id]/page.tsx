@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 // ✅ YENİ: İkonlar eklendi
-import { ArrowLeft, Users, Calendar, University, User, Info, UserPlus, UserMinus, FileText, Clock, Check, Settings, Edit2, X } from "lucide-react"
+import { ArrowLeft, Users, Calendar, University, User, Info, UserPlus, UserMinus, FileText, Clock, Check, Settings, Edit2, X, Flag } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,6 +83,10 @@ export default function ClubDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showApplicationDialog, setShowApplicationDialog] = useState(false)
   const [applicationMotivation, setApplicationMotivation] = useState("")
+
+  // Report state
+  const [reportReason, setReportReason] = useState("")
+  const [isReporting, setIsReporting] = useState(false)
 
   // 1. Hydration check
   useEffect(() => {
@@ -283,6 +287,40 @@ export default function ClubDetailPage() {
     }
   }
 
+  const handleReport = async () => {
+    if (!user) {
+      router.push("/auth/login")
+      return
+    }
+    if (!clubId || !reportReason.trim()) return
+    if (reportReason.trim().length < 10) {
+      toast({
+        title: "Invalid Report",
+        description: "Reason must be at least 10 characters",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsReporting(true)
+    try {
+      await api.reportClub(clubId, reportReason.trim())
+      toast({
+        title: "Report Submitted",
+        description: "Thank you for your report. We will review it soon.",
+      })
+      setReportReason("")
+    } catch (error: any) {
+      toast({
+        title: "Report Failed",
+        description: error.message || "Failed to submit report",
+        variant: "destructive",
+      })
+    } finally {
+      setIsReporting(false)
+    }
+  }
+
 
   // --- Katıl/Ayrıl Butonunu Render Et ---
   const renderJoinButton = () => {
@@ -432,6 +470,40 @@ export default function ClubDetailPage() {
                     {club.description || "No description provided."}
                   </p>
                 </div>
+
+                {/* Report Button - Show only if not admin */}
+                {membershipStatus !== 'ADMIN' && user && (
+                  <div className="pt-4 border-t">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="w-full">
+                          <Flag className="mr-2 h-4 w-4" />
+                          Report Club
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Report Club</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Please provide a reason for reporting this club (minimum 10 characters).
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <Textarea
+                          placeholder="Describe why you are reporting this club..."
+                          value={reportReason}
+                          onChange={(e) => setReportReason(e.target.value)}
+                          className="min-h-[100px]"
+                        />
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => setReportReason("")}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleReport} disabled={isReporting || reportReason.trim().length < 10}>
+                            {isReporting ? "Submitting..." : "Submit Report"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

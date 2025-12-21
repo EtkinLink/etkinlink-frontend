@@ -390,6 +390,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ ticket_code: ticketCode }),
     }),
+  manualCheckIn: async (eventId: number, idValue: number) =>
+    fetchAPI(`/events/${eventId}/manual-check-in`, {
+      method: "POST",
+      body: JSON.stringify({ participant_id: idValue }),
+    }),
 
   // ---------- Event Applications ----------
   createApplication: (eventId: number, whyMe?: string) =>
@@ -591,6 +596,18 @@ export const api = {
     return mapPaginatedResponse(resp).items ?? []
   },
     
+  // ---------- Reports ----------
+  reportEvent: (eventId: number, reason: string) =>
+    fetchAPI(`/events/${eventId}/report`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  reportClub: (clubId: number, reason: string) =>
+    fetchAPI(`/organizations/${clubId}/report`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
   // ---------- Notifications (not available) ----------
   getNotifications: async () => [],
   markNotificationsRead: async () => ({ message: "Not supported" }),

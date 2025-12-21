@@ -21,6 +21,7 @@ import { ArrowLeft, Check, X } from "lucide-react"
 interface Application {
   id: number
   user_id: number
+  participant_id?: number // participant_id when application is approved
   username: string
   why_me: string | null
   status: "PENDING" | "APPROVED" | "REJECTED" | string
@@ -29,7 +30,8 @@ interface Application {
 }
 
 interface Participant {
-  id: number
+  id: number // user_id (backend sends user.id as 'id')
+  participant_id?: number // Will be populated from backend if available
   username: string
   status: string | null
   attendance_status?: "ATTENDED" | "NO_SHOW" | null
@@ -79,27 +81,46 @@ export default function ApplicationsPage() {
 
 
   const fetchApplications = useCallback(async () => {
-    setIsLoading(true) 
+    setIsLoading(true)
     try {
       const [applicationsData, eventData] = await Promise.all([
         api.getApplications(eventId!),
         api.getEvent(eventId!)
       ])
-      
+
+      // Create a map of user_id -> participant data for quick lookup
+      const participantMap = new Map<number, any>()
+      if (eventData?.participants) {
+        eventData.participants.forEach((p: any) => {
+          const userId = p.id || p.user_id
+          participantMap.set(userId, p)
+        })
+      }
+
       setApplications(
-        applicationsData.map((app: any) => ({
-          ...app,
-          id: app.id || app.application_id, // Backend might return application_id instead of id
-          status: normalizeStatus(app.status) as Application["status"],
-          source: "APPLICATION",
-        }))
+        applicationsData.map((app: any) => {
+          // Find matching participant by user_id
+          const matchingParticipant = participantMap.get(app.user_id)
+          const attendanceStatus = matchingParticipant?.status || null
+          const participantId = matchingParticipant?.participant_id || null
+
+          return {
+            ...app,
+            id: app.id || app.application_id,
+            participant_id: participantId,
+            status: normalizeStatus(app.status) as Application["status"],
+            source: "APPLICATION",
+            attendance_status: attendanceStatus,
+          }
+        })
       )
       setParticipants(
         (eventData?.participants || []).map((participant: any) => ({
-          id: participant.id,
+          id: participant.id || participant.user_id,
+          participant_id: participant.participant_id,
           username: participant.username,
           status: participant.status ?? null,
-          attendance_status: participant.status ?? "NO_SHOW", // participant.status is attendance status
+          attendance_status: participant.status ?? "NO_SHOW",
         }))
       )
     } catch (error: any) {
@@ -139,13 +160,24 @@ export default function ApplicationsPage() {
     }
   }
 
-  // Attendance durumunu güncelleme (NO_SHOW <-> ATTENDED)
-  const handleToggleAttendance = async (userId: number, currentStatus: string) => {
+  // Attendance durumunu güncelleme - Manual check-in kullanarak
+  const handleToggleAttendance = async (participantId: number | undefined, userId: number, currentStatus: string) => {
     if (!eventId) return
-    setProcessingId(userId)
+
+    // ATTENDED ise buton zaten disabled, bu fonksiyon çağrılmamalı
+    if (currentStatus === "ATTENDED") return
+
+    // Eğer participant_id yoksa (eski kayıtlar için), user_id kullan
+    const idToUse = participantId ?? userId
+    setProcessingId(idToUse)
+
     try {
-      const newStatus = currentStatus === "ATTENDED" ? "NO_SHOW" : "ATTENDED"
-      await api.setAttendance(eventId, userId, newStatus)
+      // NO_SHOW'dan ATTENDED'e geçmek için manual check-in kullan
+      if (participantId) {
+        await api.manualCheckIn(eventId, participantId)
+      } else {
+        await api.manualCheckIn(eventId, userId)
+      }
       await fetchApplications() // Listeyi yenile
     } catch (error: any) {
       alert(error.message || "Failed to update attendance")
@@ -170,6 +202,7 @@ export default function ApplicationsPage() {
     .map((participant) => ({
       id: Number(participant.id ?? 0),
       user_id: Number(participant.id ?? 0),
+      participant_id: participant.participant_id, // Add participant_id from participants list
       username: participant.username,
       why_me: null,
       status: normalizeStatus(participant.status) as Application["status"],
@@ -363,11 +396,14 @@ export default function ApplicationsPage() {
                         <Button
                           size="sm"
                           variant={application.attendance_status === "ATTENDED" ? "outline" : "default"}
-                          onClick={() => handleToggleAttendance(application.user_id, application.attendance_status ?? "NO_SHOW")}
-                          disabled={processingId === application.user_id}
+                          onClick={() => handleToggleAttendance(application.participant_id, application.user_id, application.attendance_status ?? "NO_SHOW")}
+                          disabled={
+                            processingId === (application.participant_id ?? application.user_id) ||
+                            application.attendance_status === "ATTENDED"
+                          }
                         >
                           <Check className="mr-2 h-4 w-4" />
-                          {application.attendance_status === "ATTENDED" ? "Mark as No Show" : "Mark as Attended"}
+                          {application.attendance_status === "ATTENDED" ? "Marked as Attended" : "Mark as Attended"}
                         </Button>
                       </div>
                     )

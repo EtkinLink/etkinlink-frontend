@@ -29,7 +29,8 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
-  Building2
+  Building2,
+  Flag
 } from "lucide-react"
 
 interface UserEvent {
@@ -74,6 +75,7 @@ export default function ProfilePage() {
   const [myEvents, setMyEvents] = useState<UserEvent[]>([])
   const [myOwnedEvents, setMyOwnedEvents] = useState<any[]>([])
   const [myClubs, setMyClubs] = useState<Club[]>([])
+  const [myReports, setMyReports] = useState<any[]>([])
   const [isLoadingEvents, setIsLoadingEvents] = useState(true)
   const [isLoadingOwnedEvents, setIsLoadingOwnedEvents] = useState(true)
   const [isLoadingClubs, setIsLoadingClubs] = useState(true)
@@ -121,6 +123,16 @@ export default function ProfilePage() {
     }
   }
 
+  const fetchMyReports = async () => {
+    try {
+      const reports = await api.getMyReports()
+      setMyReports(reports || [])
+    } catch (error) {
+      console.error("Failed to fetch reports:", error)
+      setMyReports([])
+    }
+  }
+
   const fetchUniversities = useCallback(async () => {
     try {
       const unis = await api.getUniversities()
@@ -139,6 +151,7 @@ export default function ProfilePage() {
       fetchMyEvents()
       fetchMyOwnedEvents()
       fetchMyClubs()
+      fetchMyReports()
       fetchUniversities()
     }
   }, [isMounted, authLoading, router, fetchUniversities])
@@ -380,12 +393,23 @@ export default function ProfilePage() {
                         <p className="text-xs text-muted-foreground mt-1">Created</p>
                       </CardContent>
                     </Card>
-                    <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-none col-span-2">
+                    <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-none">
                       <CardContent className="pt-4 pb-4 text-center">
                         <p className="text-2xl font-bold text-purple-600">{myClubs.length}</p>
                         <p className="text-xs text-muted-foreground mt-1">Clubs</p>
                       </CardContent>
                     </Card>
+                    <Link href="/my-reports" className="block">
+                      <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-none hover:shadow-md transition-all cursor-pointer">
+                        <CardContent className="pt-4 pb-4 text-center">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <Flag className="h-4 w-4 text-orange-600" />
+                            <p className="text-2xl font-bold text-orange-600">{myReports.length}</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">Reports</p>
+                        </CardContent>
+                      </Card>
+                    </Link>
                   </div>
                 </div>
               </CardContent>

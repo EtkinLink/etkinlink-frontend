@@ -607,6 +607,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ reason }),
     }),
+  getMyReports: async () => {
+    const resp = await fetchAPI("/events/my-reports")
+    return mapPaginatedResponse(resp).items ?? []
+  },
 
   // ---------- Notifications (not available) ----------
   getNotifications: async () => [],

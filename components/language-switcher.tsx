@@ -21,12 +21,12 @@ export function LanguageSwitcher({ className }: { className?: string }) {
   const selectId = useId()
 
   return (
-    <div className={`flex items-center gap-3 ${className ?? ""}`}>
-      <Label htmlFor={selectId} className="text-xs font-medium uppercase tracking-tight whitespace-nowrap">
+    <div className={`flex items-center gap-2 ${className ?? ""}`}>
+      <Label htmlFor={selectId} className="hidden sm:block text-xs font-medium uppercase tracking-tight whitespace-nowrap">
         {t("common.language")}
       </Label>
       <Select value={locale} onValueChange={(val) => setLocale(val as Locale)}>
-        <SelectTrigger id={selectId} className="w-[220px]">
+        <SelectTrigger id={selectId} className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

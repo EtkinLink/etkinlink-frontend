@@ -60,7 +60,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </Button>
               </nav>
             )}
-            <LanguageSwitcher className="w-[100px] sm:w-[180px] md:w-[220px]" />
+            <LanguageSwitcher className="w-[70px] sm:w-[140px] md:w-[180px]" />
           </div>
         </div>
       </header>

@@ -92,8 +92,9 @@ export default function ApplicationsPage() {
       const participantMap = new Map<number, any>()
       if (eventData?.participants) {
         eventData.participants.forEach((p: any) => {
-          const userId = p.id || p.user_id
-          participantMap.set(userId, p)
+          const userId = p.user_id
+          const participantId = p.id  // p.id is actually the participant_id
+          participantMap.set(userId, { ...p, participant_id: participantId })
         })
       }
 
@@ -114,15 +115,15 @@ export default function ApplicationsPage() {
           }
         })
       )
-      setParticipants(
-        (eventData?.participants || []).map((participant: any) => ({
-          id: participant.id || participant.user_id,
-          participant_id: participant.participant_id,
-          username: participant.username,
-          status: participant.status ?? null,
-          attendance_status: participant.status ?? "NO_SHOW",
-        }))
-      )
+      const participantsList = (eventData?.participants || []).map((participant: any) => ({
+        id: participant.user_id,  // Use user_id as the id
+        participant_id: participant.id,  // participant.id is the actual participant_id
+        username: participant.username,
+        status: participant.status ?? null,
+        attendance_status: participant.status ?? "NO_SHOW",
+      }))
+
+      setParticipants(participantsList)
     } catch (error: any) {
       console.error("Failed to fetch applications:", error)
       console.error("Error status:", error.status)
@@ -198,18 +199,18 @@ export default function ApplicationsPage() {
   }
 
   const pendingApplications = applications.filter((a) => isPendingStatus(a.status))
+
   const participantApprovals = participants
     .map((participant) => ({
-      id: Number(participant.id ?? 0),
-      user_id: Number(participant.id ?? 0),
-      participant_id: participant.participant_id, // Add participant_id from participants list
+      id: participant.id,  // user_id
+      user_id: participant.id,  // user_id
+      participant_id: participant.participant_id,  // actual participant_id
       username: participant.username,
       why_me: null,
-      status: normalizeStatus(participant.status) as Application["status"],
+      status: "APPROVED" as Application["status"],  // All participants are approved by default
       source: "PARTICIPANT" as const,
       attendance_status: participant.attendance_status ?? "NO_SHOW",
     }))
-    .filter((participant) => isApprovedStatus(participant.status))
 
   const combinedApprovedMap = new Map<string, Application>()
   const buildKey = (entry: Application) =>

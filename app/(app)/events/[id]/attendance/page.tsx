@@ -4,15 +4,14 @@ import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api } from "@/lib/api-client"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// ✅ ArrowLeft ve Link importları kaldırıldı (Global layout var)
+import { Button } from "@/components/ui/button"
 import { CheckCircle2, XCircle } from "lucide-react"
 
 interface AttendanceRecord {
+  id: number // participant_id
   user_id: number
   username: string
   // ✅ DÜZELTME (İyi pratik): 'status' tipini 'string' yerine daha spesifik hale getirdik
@@ -32,7 +31,6 @@ export default function AttendancePage() {
       const data = await api.getAttendance(Number(params.id))
       setAttendance(data)
     } catch (error: any) {
-      console.error("Failed to fetch attendance:", error)
       if (error.status === 403) {
         alert("Only event owners/club admins can manage attendance")
         router.push(`/events/${params.id}`)
@@ -49,21 +47,20 @@ export default function AttendancePage() {
     fetchAttendance()
   }, [params.id, user, fetchAttendance]) // ✅ 'user' bağımlılıklara eklendi
 
-  const handleUpdateStatus = async (userId: number, status: string) => {
-    setUpdatingUserId(userId)
+  const handleCheckIn = async (participantId: number) => {
+    setUpdatingUserId(participantId)
     try {
-      // ✅ DÜZELTME (Vercel Build Hatası):
-      // TypeScript'e bu 'status' string'inin "ATTENDED" veya "NO_SHOW" olduğunu garanti et.
-      await api.setAttendance(Number(params.id), userId, status as "ATTENDED" | "NO_SHOW")
-      
-      // Sayfayı yenilemek yerine state'i anında güncelle (daha hızlı UI)
-      setAttendance(prevList => 
-        prevList.map(p => 
-          p.user_id === userId ? { ...p, status: status as "ATTENDED" | "NO_SHOW" } : p
+      // Use manual check-in endpoint
+      await api.manualCheckIn(Number(params.id), participantId)
+
+      // Update state immediately (faster UI)
+      setAttendance(prevList =>
+        prevList.map(p =>
+          p.id === participantId ? { ...p, status: "ATTENDED" } : p
         )
       )
     } catch (error: any) {
-      alert(error.message || "Failed to update attendance")
+      alert(error.message || "Failed to check in participant")
     } finally {
       setUpdatingUserId(null)
     }
@@ -158,19 +155,20 @@ export default function AttendancePage() {
                             </div>
                           </div>
                         </div>
-                        <Select
-                          value={record.status}
-                          onValueChange={(value) => handleUpdateStatus(record.user_id, value)}
-                          disabled={updatingUserId === record.user_id}
-                        >
-                          <SelectTrigger className="w-[150px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ATTENDED">Attended</SelectItem>
-                            <SelectItem value="NO_SHOW">No Show</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        {record.status === "ATTENDED" ? (
+                          <Button variant="outline" disabled>
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Checked In
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleCheckIn(record.id)}
+                            disabled={updatingUserId === record.id}
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            {updatingUserId === record.id ? "Checking In..." : "Check In"}
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

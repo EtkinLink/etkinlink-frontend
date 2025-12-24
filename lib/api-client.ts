@@ -395,9 +395,9 @@ export const api = {
 
   // ---------- Check-in / Attendance ----------
   getAttendance: async (eventId: number) => {
-    const resp = await fetchAPI(`/events/${eventId}/attendance`)
-    // Backend may return either an array or an object with an "attendance" field
-    return Array.isArray(resp) ? resp : resp?.attendance ?? []
+    // Get participants from event details
+    const event = await fetchAPI(`/events/${eventId}`)
+    return Array.isArray(event?.participants) ? event.participants : []
   },
   setAttendance: async (eventId: number, userId: number, status: "ATTENDED" | "NO_SHOW") =>
     fetchAPI(`/events/${eventId}/attendance/${userId}`, {

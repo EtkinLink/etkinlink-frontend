@@ -188,10 +188,10 @@ export default function EventsPage() {
       const params: any = { page: 1, per_page: 100, sort: "starts_at", order: "desc" }
 
       // Filtreleme parametrelerini ekle
-      if (selectedType !== "all") params.type_id = selectedType
+      if (selectedType !== "all") params.type = selectedType
       if (searchQuery) params.q = searchQuery
-      if (dateFrom) params.starts_at_from = dateFrom
-      if (dateTo) params.starts_at_to = dateTo
+      if (dateFrom) params.from = dateFrom
+      if (dateTo) params.to = dateTo
 
       let allEvents: Event[] = []
 
@@ -199,7 +199,7 @@ export default function EventsPage() {
         const response = await api.getNearbyEvents(userLocation.lat, userLocation.lng, 10, params)
         allEvents = response.items || []
       } else {
-        const response = await api.getEvents(params)
+        const response = await api.filterEvents(params)
         allEvents = response.items || []
       }
 

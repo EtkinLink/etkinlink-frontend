@@ -51,26 +51,13 @@ export default function ClubsPage() {
     const fetchClubs = async () => {
       setIsLoading(true)
       try {
-        // API'dan ham listeyi çek
-        const clubsData = await api.getClubs()
+        const params: any = {}
 
-        // Search filtresi uygula
-        let filtered = clubsData
-        if (search.trim()) {
-          filtered = filtered.filter((c: any) =>
-            c.name?.toLowerCase().includes(search.toLowerCase()) ||
-            c.description?.toLowerCase().includes(search.toLowerCase())
-          )
-        }
+        if (search.trim()) params.q = search.trim()
+        if (selectedUniversity !== "all") params.university_id = Number(selectedUniversity)
 
-        // University filtresi uygula
-        if (selectedUniversity !== "all") {
-          filtered = filtered.filter((c: any) =>
-            c.university_id?.toString() === selectedUniversity
-          )
-        }
-
-        setClubs(filtered)
+        const clubsData = await api.getClubs(params)
+        setClubs(clubsData)
       } catch (err) {
         console.error("Failed to fetch clubs:", err)
       } finally {
@@ -78,7 +65,7 @@ export default function ClubsPage() {
       }
     }
     fetchClubs()
-  }, [search, selectedUniversity]) 
+  }, [search, selectedUniversity])
 
   return (
     <div className="min-h-screen bg-muted/30">

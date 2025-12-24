@@ -287,11 +287,30 @@ export const api = {
     }))
   },
 
-  getMyOwnedEvents: async () => {
-    // TODO: Backend needs to return owner_user_id or owner_username in /events endpoint
-    // For now, return empty array until backend is fixed
-    return []
+  getMyOwnedEvents: async (opts?: { perPage?: number }) => {
+    const userId = getUserIdFromToken()
+    if (!userId) return []
+
+    const params: Record<string, any> = {
+      page: 1,
+      per_page: opts?.perPage ?? 50,
+    }
+
+    const query = new URLSearchParams(params as any).toString()
+
+    const resp = await fetchAPI(`/users/${userId}/events${query ? "?" + query : ""}`)
+    const items = mapPaginatedResponse(resp).items ?? []
+
+    return items
+      .filter((item: any) => (item.participation_status ?? item.status) === "OWNER")
+      .map((item: any) => ({
+        ...item,
+        id: item.event_id ?? item.id,
+        title: item.event_title ?? item.title,
+        participation_status: item.participation_status ?? item.status ?? null,
+      }))
   },
+
   
   createEvent: (data: any) => {
     const payload: Record<string, any> = {
@@ -434,34 +453,53 @@ export const api = {
    * }
    */
   getClubs: async (params?: {
-    university_id?: number,
-    q?: string,
-    status?: string,
-    owner_username?: string,
-    page?: number,
+    university_id?: number
+    q?: string
+    status?: string
+    owner_username?: string
+    page?: number
     per_page?: number
     search?: string
   }) => {
-    const query = params && Object.keys(params).length > 0
-      ? `?${new URLSearchParams(Object.entries(params).reduce((acc, [k, v]) => {
-          if (v !== undefined && v !== null && v !== "") acc[k] = String(v)
-          return acc
-        }, {} as Record<string, string>))}`
-      : ""
-    const resp = await fetchAPI(`/organizations${query}`)
+    const hasFilters =
+      !!(params?.q && params.q.trim()) ||
+      params?.university_id !== undefined ||
+      !!(params?.search && params.search.trim())
+
+    const mapped: Record<string, string> = {}
+
+    const q = (params?.q ?? params?.search ?? "").trim()
+    if (q) mapped.q = q
+
+    if (params?.university_id !== undefined && params?.university_id !== null) {
+      mapped.university = String(params.university_id) // backend: /organizations/filter expects "university"
+    }
+
+    if (params?.page) mapped.page = String(params.page)
+    if (params?.per_page) mapped.per_page = String(params.per_page)
+
+    const query = Object.keys(mapped).length ? `?${new URLSearchParams(mapped)}` : ""
+
+    const endpoint = hasFilters ? `/organizations/filter${query}` : `/organizations${query}`
+
+    const resp = await fetchAPI(endpoint)
     const items = mapPaginatedResponse(resp).items ?? []
-    return Array.isArray(items) ? items.map((item: any) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      university_name: item.university_name ?? "",
-      university_id: item.university_id ?? null,
-      member_count: item.member_count ?? 0,
-      status: item.status,
-      photo_url: item.photo_url,
-      owner_username: item.owner_username,
-    })) : []
+
+    return Array.isArray(items)
+      ? items.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          university_name: item.university_name ?? "",
+          university_id: item.university_id ?? null,
+          member_count: item.member_count ?? 0,
+          status: item.status,
+          photo_url: item.photo_url,
+          owner_username: item.owner_username,
+        }))
+      : []
   },
+
   getClub: async (id: number) => {
     const data = await fetchAPI<any>(`/organizations/${id}`)
     return {

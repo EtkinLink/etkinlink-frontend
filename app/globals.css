@@ -133,4 +133,64 @@
     @apply mx-auto w-full px-4 sm:px-6 lg:px-8;
     max-width: 1280px;
   }
+
+  /* Leaflet popup customization for dark mode */
+  .leaflet-popup-content-wrapper {
+    background: hsl(var(--card)) !important;
+    color: hsl(var(--foreground)) !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .dark .leaflet-popup-content-wrapper {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid hsl(var(--border));
+  }
+
+  .leaflet-popup-tip {
+    background: hsl(var(--card)) !important;
+  }
+
+  .dark .leaflet-popup-tip {
+    border: 1px solid hsl(var(--border)) !important;
+    border-top: none !important;
+    border-left: none !important;
+  }
+
+  .leaflet-container a.leaflet-popup-close-button {
+    color: hsl(var(--muted-foreground)) !important;
+    font-size: 20px !important;
+    padding: 4px 8px !important;
+  }
+
+  .leaflet-container a.leaflet-popup-close-button:hover {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  /* Improve marker hover effect */
+  .custom-marker-icon:hover {
+    filter: brightness(1.1);
+    transform: scale(1.05);
+    cursor: pointer;
+  }
+
+  /* Map controls styling for dark mode */
+  .dark .leaflet-control-zoom a {
+    background-color: hsl(var(--card)) !important;
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark .leaflet-control-zoom a:hover {
+    background-color: hsl(var(--accent)) !important;
+  }
+
+  .dark .leaflet-control-attribution {
+    background-color: hsl(var(--card) / 0.9) !important;
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  .dark .leaflet-control-attribution a {
+    color: hsl(var(--primary)) !important;
+  }
 }

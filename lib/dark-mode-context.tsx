@@ -15,26 +15,23 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 const STORAGE_KEY = "etkinlink-theme"
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light")
   const [mounted, setMounted] = useState(false)
 
   // Initialize theme from localStorage or system preference
-  useEffect(() => {
-    setMounted(true)
+  const getInitialTheme = (): Theme => {
+    if (typeof window === "undefined") return "light"
 
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
-
     if (stored === "dark" || stored === "light") {
-      setThemeState(stored)
-      applyTheme(stored)
-    } else {
-      // Check system preference
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-      const systemTheme = prefersDark ? "dark" : "light"
-      setThemeState(systemTheme)
-      applyTheme(systemTheme)
+      return stored
     }
-  }, [])
+
+    // Check system preference
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+    return prefersDark ? "dark" : "light"
+  }
+
+  const [theme, setThemeState] = useState<Theme>(getInitialTheme)
 
   const applyTheme = (newTheme: Theme) => {
     const root = document.documentElement
@@ -45,6 +42,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.classList.remove("dark")
     }
   }
+
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+  }, [])
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme)

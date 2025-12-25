@@ -154,7 +154,7 @@ export default function ProfilePage() {
       fetchMyReports()
       fetchUniversities()
     }
-  }, [isMounted, authLoading, router, fetchUniversities])
+  }, [isMounted, authLoading, user, router, fetchUniversities])
 
   // Separate useEffect to update formData when user changes
   useEffect(() => {
@@ -165,7 +165,7 @@ export default function ProfilePage() {
         university_id: (user as any).university_id?.toString() || "none",
       })
     }
-  }, [user?.username, user?.name, user?.university_id, isEditing])
+  }, [user, isEditing])
 
   const handleDeleteEvent = async (eventId: number) => {
     if (!confirm("Are you sure you want to delete this event?")) return

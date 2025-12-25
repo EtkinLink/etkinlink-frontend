@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { MapContainerProps } from "react-leaflet"
 import type { LatLngTuple, LatLngBoundsExpression, DivIcon } from "leaflet"
+import { useTheme } from "@/lib/dark-mode-context"
 import "leaflet/dist/leaflet.css"
 
 const DynamicMapContainer = dynamic<MapContainerProps>(
@@ -50,6 +51,7 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
   const [isLeafletReady, setIsLeafletReady] = useState(false)
   const [markerIcon, setMarkerIcon] = useState<DivIcon | null>(null)
   const router = useRouter()
+  const { theme } = useTheme()
 
   useEffect(() => {
     let mounted = true
@@ -59,31 +61,40 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
         if (!mounted) return
         const L = module.default ?? module
 
+        const isDark = theme === "dark"
         const iconHtml = `
           <div style="
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            border-radius: 18px 18px 18px 4px;
+            width: 40px;
+            height: 40px;
+            background: ${isDark
+              ? "linear-gradient(135deg, #818cf8, #a78bfa)"
+              : "linear-gradient(135deg, #6366f1, #8b5cf6)"};
+            border-radius: 50% 50% 50% 0;
             transform: rotate(-45deg);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 10px 18px rgba(99, 102, 241, 0.35);
-            color: white;
-            font-weight: 600;
-            font-size: 14px;
+            box-shadow: ${isDark
+              ? "0 4px 12px rgba(129, 140, 248, 0.4)"
+              : "0 4px 12px rgba(99, 102, 241, 0.5)"};
+            border: 3px solid ${isDark ? "#1e293b" : "white"};
+            transition: all 0.2s ease;
           ">
-            <span style="transform: rotate(45deg); display:block;">★</span>
+            <span style="
+              transform: rotate(45deg);
+              display: block;
+              font-size: 18px;
+              margin-top: -4px;
+            ">📍</span>
           </div>
         `
 
         const customIcon = L.divIcon({
           html: iconHtml,
-          className: "",
-          iconSize: [36, 36],
-          iconAnchor: [18, 28],
-          popupAnchor: [0, -24],
+          className: "custom-marker-icon",
+          iconSize: [40, 40],
+          iconAnchor: [20, 40],
+          popupAnchor: [0, -40],
         })
 
         setMarkerIcon(customIcon)
@@ -96,7 +107,7 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
     return () => {
       mounted = false
     }
-  }, [])
+  }, [theme])
 
   const markers = useMemo(
     () =>
@@ -125,8 +136,11 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
   if (!isLeafletReady) {
     return (
       <div className={containerClass} style={{ height }}>
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-          Loading map...
+        <div className="flex h-full items-center justify-center bg-muted/50">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p className="text-sm text-muted-foreground">Loading map...</p>
+          </div>
         </div>
       </div>
     )
@@ -146,10 +160,15 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
         scrollWheelZoom={false}
         style={{ height: "100%", width: "100%" }}
         key={mapKey}
+        className={theme === "dark" ? "dark-map" : ""}
       >
         <DynamicTileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={
+            theme === "dark"
+              ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          }
         />
         {hasMarkers &&
           markers.map((event) => (
@@ -164,12 +183,18 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
                 },
               }}
             >
-              <DynamicPopup>
-                <div className="space-y-1">
-                  <p className="font-semibold">{event.title}</p>
-                  {event.location_name && <p className="text-xs text-muted-foreground">{event.location_name}</p>}
+              <DynamicPopup className="custom-popup">
+                <div className="space-y-1.5 min-w-[180px]">
+                  <p className="font-semibold text-foreground text-sm leading-tight">{event.title}</p>
+                  {event.location_name && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <span>📍</span>
+                      {event.location_name}
+                    </p>
+                  )}
                   {event.starts_at && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <span>🕒</span>
                       {new Date(event.starts_at).toLocaleString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -178,15 +203,21 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
                       })}
                     </p>
                   )}
+                  <p className="text-xs text-primary pt-1 cursor-pointer hover:underline">
+                    Click to view details →
+                  </p>
                 </div>
               </DynamicPopup>
             </DynamicMarker>
           ))}
       </DynamicMapContainer>
       {!hasMarkers && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 mb-4 flex justify-center">
-          <div className="rounded-full bg-background/90 px-4 py-2 text-xs text-muted-foreground shadow-md">
-            Location details haven’t been shared yet.
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="rounded-lg bg-card/95 backdrop-blur-sm border shadow-lg px-6 py-4 text-center max-w-xs">
+            <p className="text-sm font-medium text-foreground mb-1">📍 No locations yet</p>
+            <p className="text-xs text-muted-foreground">
+              Location details haven&apos;t been shared for these events.
+            </p>
           </div>
         </div>
       )}

@@ -151,7 +151,7 @@ export default function ClubDetailPage() {
 
     fetchMembershipStatus()
 
-  }, [isMounted, clubId, user?.username, club?.owner_username])
+  }, [isMounted, clubId, user, club])
 
   
   // --- EVENT HANDLERS ---

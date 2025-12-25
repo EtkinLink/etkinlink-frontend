@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert" // Hata mesajı 
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group" // Yeni bileşen
 
 // İkonlar
-import { ArrowLeft, AlertCircle } from "lucide-react"
+import { ArrowLeft, AlertCircle, Search, MapPin, Loader2 } from "lucide-react"
 
 // --- YENİ ARAYÜZLER ---
 interface MyClub {
@@ -41,6 +41,20 @@ interface EventFormData {
   club_id: string
   join_method: "DIRECT_JOIN" | "APPLICATION_ONLY"
 }
+
+// Nominatim API Response
+interface NominatimResult {
+  place_id: number
+  lat: string
+  lon: string
+  display_name: string
+  address?: {
+    country?: string
+    city?: string
+    town?: string
+    village?: string
+  }
+}
 // ----------------------
 
 export default function CreateEventPage() {
@@ -55,7 +69,13 @@ export default function CreateEventPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null) // Hata mesajı state'i
-  
+
+  // Location search states
+  const [locationSearch, setLocationSearch] = useState("")
+  const [searchResults, setSearchResults] = useState<NominatimResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+
   const [formData, setFormData] = useState<EventFormData>({
     title: "",
     explanation: "",
@@ -73,13 +93,28 @@ export default function CreateEventPage() {
   })
 
   const [onlyGirls, setOnlyGirls] = useState(false)
-  
+
+  // Debounce for location search
+  useEffect(() => {
+    if (!locationSearch || locationSearch.trim().length < 3) {
+      setSearchResults([])
+      setShowResults(false)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      searchLocation(locationSearch)
+    }, 500) // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timer)
+  }, [locationSearch])
+
   // Veri çekme ve Auth kontrolü
   useEffect(() => {
     // Auth yüklenirken yönlendirme yapma; F5 sonrası token kaybı yaşıyorduk
     if (authLoading) return
     if (!user) {
-      window.location.href = "/auth/login" 
+      window.location.href = "/auth/login"
       return
     }
     fetchDropdownData()
@@ -180,6 +215,46 @@ export default function CreateEventPage() {
   // ✅ YENİ: RadioGroup için handler
   const handleRadioChange = (value: string) => {
     setFormData((prev) => ({ ...prev, join_method: value as "DIRECT_JOIN" | "APPLICATION_ONLY" }))
+  }
+
+  // Location search with Nominatim API
+  const searchLocation = async (query: string) => {
+    setIsSearching(true)
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?` +
+        `q=${encodeURIComponent(query)}&` +
+        `format=json&` +
+        `addressdetails=1&` +
+        `limit=10`, // Increased from 5 to 10, removed country restriction
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'EtkinLink Event Platform' // Required by Nominatim
+          }
+        }
+      )
+      const data = await response.json()
+      setSearchResults(data)
+      setShowResults(true)
+    } catch (err) {
+      console.error("Location search error:", err)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const selectLocation = (result: NominatimResult) => {
+    // Only set coordinates, let user write their own location name
+    setFormData((prev) => ({
+      ...prev,
+      latitude: result.lat,
+      longitude: result.lon,
+    }))
+    setLocationSearch("")
+    setShowResults(false)
+    setSearchResults([])
   }
 
   if (authLoading) {
@@ -339,57 +414,129 @@ export default function CreateEventPage() {
                 </div>
               </div>
 
-              {/* --- Lokasyon ve Limit --- */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="location_name">Location</Label>
+              {/* --- Lokasyon Arama --- */}
+              <div className="space-y-2">
+                <Label htmlFor="location_search">Search Location</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="location_name"
-                    value={formData.location_name}
-                    onChange={(e) => handleChange("location_name", e.target.value)}
-                    placeholder="Event location"
+                    id="location_search"
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    onFocus={() => searchResults.length > 0 && setShowResults(true)}
+                    placeholder="Search for a location (e.g., İTÜ Ayazağa)"
+                    className="pl-9"
                   />
+                  {isSearching && (
+                    <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="user_limit">Participant Limit</Label>
-                  <Input
-                    id="user_limit"
-                    type="number"
-                    min="1"
-                    value={formData.user_limit}
-                    onChange={(e) => handleChange("user_limit", e.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
+                {/* Search Results Dropdown */}
+                {showResults && searchResults.length > 0 && (
+                  <div className="relative">
+                    <div className="absolute z-10 w-full mt-1 bg-card border rounded-md shadow-lg max-h-60 overflow-auto">
+                      {searchResults.map((result) => (
+                        <button
+                          key={result.place_id}
+                          type="button"
+                          onClick={() => selectLocation(result)}
+                          className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b last:border-b-0 flex items-start gap-2"
+                        >
+                          <MapPin className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{result.display_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {result.lat}, {result.lon}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {showResults && searchResults.length === 0 && locationSearch.length >= 3 && !isSearching && (
+                  <p className="text-sm text-muted-foreground">No locations found. Try a different search.</p>
+                )}
               </div>
 
-              {/* --- GPS (Optional) --- */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude (Optional)</Label>
-                  <Input
-                    id="latitude"
-                    type="number"
-                    step="any"
-                    value={formData.latitude}
-                    onChange={(e) => handleChange("latitude", e.target.value)}
-                    placeholder="e.g. 41.085"
-                  />
+              {/* Selected Location Display */}
+              {formData.location_name && (
+                <div className="rounded-md bg-primary/5 border border-primary/20 p-3">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Selected Location</p>
+                      <p className="text-xs text-muted-foreground mt-1">{formData.location_name}</p>
+                      {formData.latitude && formData.longitude && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          📍 {parseFloat(formData.latitude).toFixed(6)}, {parseFloat(formData.longitude).toFixed(6)}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, location_name: "", latitude: "", longitude: "" }))
+                        setLocationSearch("")
+                        setSearchResults([])
+                      }}
+                      className="text-xs"
+                    >
+                      Clear
+                    </Button>
+                  </div>
                 </div>
+              )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude (Optional)</Label>
-                  <Input
-                    id="longitude"
-                    type="number"
-                    step="any"
-                    value={formData.longitude}
-                    onChange={(e) => handleChange("longitude", e.target.value)}
-                    placeholder="e.g. 29.023"
-                  />
-                </div>
+              {/* Participant Limit */}
+              <div className="space-y-2">
+                <Label htmlFor="user_limit">Participant Limit</Label>
+                <Input
+                  id="user_limit"
+                  type="number"
+                  min="1"
+                  value={formData.user_limit}
+                  onChange={(e) => handleChange("user_limit", e.target.value)}
+                  placeholder="Optional"
+                />
               </div>
+
+              {/* --- Manual GPS (Advanced, Optional) --- */}
+              <details className="group">
+                <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors list-none flex items-center gap-2">
+                  <span>⚙️ Advanced: Manual Coordinates</span>
+                  <span className="text-xs">(Optional - use search above instead)</span>
+                </summary>
+                <div className="grid gap-4 sm:grid-cols-2 mt-3 p-4 border rounded-md bg-muted/20">
+                  <div className="space-y-2">
+                    <Label htmlFor="latitude">Latitude</Label>
+                    <Input
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      value={formData.latitude}
+                      onChange={(e) => handleChange("latitude", e.target.value)}
+                      placeholder="e.g. 41.085"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="longitude">Longitude</Label>
+                    <Input
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      value={formData.longitude}
+                      onChange={(e) => handleChange("longitude", e.target.value)}
+                      placeholder="e.g. 29.023"
+                    />
+                  </div>
+                </div>
+              </details>
               
               {/* --- Hata Mesajı --- */}
               {error && (

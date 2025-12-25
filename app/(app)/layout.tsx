@@ -1,5 +1,6 @@
 "use client" // Bu layout, hook'ları (useAuth) kullandığı için client component olmalı
 
+import { useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -13,6 +14,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isLoading } = useAuth()
   const router = useRouter()
   const { t } = useI18n()
+
+  // Sekme değişince sayfa başlığını değiştir
+  useEffect(() => {
+    const originalTitle = document.title
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Kullanıcı başka sekmeye geçti
+        document.title = t("common.comeBack")
+      } else {
+        // Kullanıcı geri döndü
+        document.title = originalTitle
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      document.title = originalTitle
+    }
+  }, [t])
 
   const handleLogout = () => {
     logout()

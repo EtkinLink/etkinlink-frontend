@@ -33,6 +33,7 @@ const translations: Translations = {
     "common.from": "From",
     "common.to": "To",
     "common.language": "Language",
+    "common.comeBack": "Your events are waiting for you! 🎉",
 
     "nav.events": "Events",
     "nav.clubs": "Clubs",
@@ -191,6 +192,7 @@ const translations: Translations = {
     "common.from": "Başlangıç",
     "common.to": "Bitiş",
     "common.language": "Dil",
+    "common.comeBack": "Etkinliklerin seni bekliyor! 🎉",
 
     "nav.events": "Etkinlikler",
     "nav.clubs": "Kulüpler",
@@ -349,6 +351,7 @@ const translations: Translations = {
     "common.from": "من",
     "common.to": "إلى",
     "common.language": "اللغة",
+    "common.comeBack": "فعالياتك في انتظارك! 🎉",
 
     "nav.events": "الفعاليات",
     "nav.clubs": "الأندية",
@@ -507,6 +510,7 @@ const translations: Translations = {
     "common.from": "Od",
     "common.to": "Do",
     "common.language": "Jezik",
+    "common.comeBack": "Tvoji događaji te čekaju! 🎉",
 
     "nav.events": "Događaji",
     "nav.clubs": "Klubovi",
@@ -665,6 +669,7 @@ const translations: Translations = {
     "common.from": "Von",
     "common.to": "Bis",
     "common.language": "Sprache",
+    "common.comeBack": "Deine Events warten auf dich! 🎉",
 
     "nav.events": "Events",
     "nav.clubs": "Clubs",
@@ -823,6 +828,7 @@ const translations: Translations = {
     "common.from": "Alkaen",
     "common.to": "Asti",
     "common.language": "Kieli",
+    "common.comeBack": "Tapahtumasi odottavat sinua! 🎉",
 
     "nav.events": "Tapahtumat",
     "nav.clubs": "Kerhot",
@@ -960,6 +966,7 @@ const translations: Translations = {
     "common.from": "Fra",
     "common.to": "Til",
     "common.language": "Sprog",
+    "common.comeBack": "Dine events venter på dig! 🎉",
 
     "nav.events": "Events",
     "nav.clubs": "Klubber",
@@ -1097,6 +1104,7 @@ const translations: Translations = {
     "common.from": "С",
     "common.to": "По",
     "common.language": "Язык",
+    "common.comeBack": "Ваши события ждут вас! 🎉",
 
     "nav.events": "События",
     "nav.clubs": "Клубы",

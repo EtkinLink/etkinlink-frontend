@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Calendar } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function SignupPage() {
   const [email, setEmail] = useState("")
@@ -41,16 +42,19 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-4">
       <div className="mb-8 flex w-full max-w-md items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Calendar className="h-8 w-8 text-indigo-600" />
+          <Calendar className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
           <span className="text-2xl font-bold">EtkinLink</span>
         </div>
-        <LanguageSwitcher className="w-full sm:w-[240px]" />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <LanguageSwitcher className="w-full sm:w-[240px]" />
+        </div>
       </div>
 
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{t("auth.createAccount")}</CardTitle>
           <CardDescription>{t("auth.signUpDescription")}</CardDescription>
@@ -87,7 +91,7 @@ export default function SignupPage() {
             {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
             {success && (
-              <div className="rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-800">
+              <div className="rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-4 text-sm text-green-800 dark:text-green-300">
                 <p className="font-semibold mb-1">Registration successful!</p>
                 <p>Please check your email <strong>{email}</strong> to verify your account.</p>
                 <p className="mt-2 text-xs">The verification link will expire in 30 minutes.</p>
@@ -100,7 +104,7 @@ export default function SignupPage() {
 
             <div className="mt-4 text-center text-sm">
               {t("auth.haveAccount")}{" "}
-              <Link href="/auth/login" className="text-indigo-600 hover:underline">{t("auth.signIn")}</Link>
+              <Link href="/auth/login" className="text-primary hover:underline">{t("auth.signIn")}</Link>
             </div>
           </form>
         </CardContent>

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card"
 import { useI18n } from "@/lib/i18n"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -57,16 +58,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-4">
       <div className="mb-8 flex w-full max-w-md items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Calendar className="h-8 w-8 text-indigo-600" />
+          <Calendar className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
           <span className="text-2xl font-bold">EtkinLink</span>
         </div>
-        <LanguageSwitcher className="w-full sm:w-[240px]" />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <LanguageSwitcher className="w-full sm:w-[240px]" />
+        </div>
       </div>
 
-      <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
+      <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{t("auth.welcomeBack")}</CardTitle>
           <CardDescription>{t("auth.signInDescription")}</CardDescription>
@@ -83,7 +87,6 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
                 required
-                className="bg-white"
               />
             </div>
 
@@ -97,7 +100,6 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 required
-                className="bg-white"
               />
             </div>
 
@@ -129,9 +131,9 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button 
-              type="submit" 
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all" 
+            <Button
+              type="submit"
+              className="w-full disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               disabled={isLoading || !turnstileToken}
             >
               {isLoading ? t("auth.signingIn") : t("auth.signIn")}
@@ -139,7 +141,7 @@ export default function LoginPage() {
 
             <div className="mt-4 text-center text-sm">
               {t("auth.noAccount")}{" "}
-              <Link href="/auth/sign-up" className="text-indigo-600 hover:underline">
+              <Link href="/auth/sign-up" className="text-primary hover:underline">
                 {t("auth.signUpCta")}
               </Link>
             </div>

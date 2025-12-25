@@ -500,17 +500,21 @@ export default function EventsPage() {
             </Card>
 
             {/* Map Card */}
-            <Card className="shadow-sm overflow-hidden">
-              <CardHeader className="pb-3">
+            <Card className="shadow-md overflow-hidden border-2">
+              <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-primary/10 border-b">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <MapPin className="h-5 w-5" /> 
-                  {t("events.map.title")}
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <MapPin className="h-5 w-5 text-primary" />
+                  </div>
+                  <span className="font-semibold">{t("events.map.title")}</span>
+                  <span className="ml-auto text-xs font-normal text-muted-foreground bg-background px-2 py-1 rounded-full">
+                    {events.filter(e => e.latitude && e.longitude).length} locations
+                  </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-0 sm:p-6 sm:pt-0">
+              <CardContent className="p-0 sm:p-4 sm:pt-4">
                 <EventMap
-                  // Sticky modda harita çok uzun olursa ekranı taşabilir, bu yüzden max-height veya sabit height veriyoruz.
-                  className="w-full h-[400px] lg:h-[500px] overflow-hidden sm:rounded-md"
+                  className="w-full h-[450px] lg:h-[550px] overflow-hidden rounded-lg shadow-inner"
                   events={events.map((event) => ({
                     id: event.id,
                     title: event.title,

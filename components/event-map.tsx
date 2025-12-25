@@ -64,37 +64,55 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
         const isDark = theme === "dark"
         const iconHtml = `
           <div style="
-            width: 40px;
-            height: 40px;
-            background: ${isDark
-              ? "linear-gradient(135deg, #818cf8, #a78bfa)"
-              : "linear-gradient(135deg, #6366f1, #8b5cf6)"};
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: ${isDark
-              ? "0 4px 12px rgba(129, 140, 248, 0.4)"
-              : "0 4px 12px rgba(99, 102, 241, 0.5)"};
-            border: 3px solid ${isDark ? "#1e293b" : "white"};
-            transition: all 0.2s ease;
+            position: relative;
+            width: 42px;
+            height: 52px;
+            filter: drop-shadow(0 6px 12px ${isDark ? 'rgba(129, 140, 248, 0.35)' : 'rgba(99, 102, 241, 0.4)'});
           ">
-            <span style="
-              transform: rotate(45deg);
-              display: block;
-              font-size: 18px;
-              margin-top: -4px;
-            ">📍</span>
+            <div style="
+              width: 42px;
+              height: 42px;
+              background: ${isDark
+                ? "linear-gradient(135deg, #818cf8 0%, #a78bfa 100%)"
+                : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"};
+              border-radius: 50% 50% 50% 0;
+              transform: rotate(-45deg);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border: 3px solid ${isDark ? '#334155' : 'white'};
+              box-shadow: inset 0 2px 8px rgba(255, 255, 255, 0.15);
+            ">
+              <span style="
+                transform: rotate(45deg);
+                display: block;
+                font-size: 20px;
+                line-height: 1;
+                margin-top: -3px;
+                margin-left: -1px;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+              ">📍</span>
+            </div>
+            <div style="
+              position: absolute;
+              bottom: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              width: 6px;
+              height: 10px;
+              background: ${isDark ? '#818cf8' : '#6366f1'};
+              border-radius: 0 0 3px 3px;
+              opacity: 0.7;
+            "></div>
           </div>
         `
 
         const customIcon = L.divIcon({
           html: iconHtml,
           className: "custom-marker-icon",
-          iconSize: [40, 40],
-          iconAnchor: [20, 40],
-          popupAnchor: [0, -40],
+          iconSize: [42, 52],
+          iconAnchor: [21, 52],
+          popupAnchor: [0, -52],
         })
 
         setMarkerIcon(customIcon)
@@ -121,14 +139,31 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
     [events]
   )
 
-  const center: LatLngTuple = markers.length
-    ? [markers[0].latitude as number, markers[0].longitude as number]
-    : DEFAULT_CENTER
+  // Tüm marker konumlarını içeren bounds hesapla
+  const bounds: LatLngBoundsExpression | undefined = useMemo(() => {
+    if (markers.length === 0) return undefined
 
-  const bounds: LatLngBoundsExpression | undefined =
-    markers.length > 1
-      ? (markers.map((event) => [event.latitude as number, event.longitude as number]) as LatLngTuple[])
-      : undefined
+    if (markers.length === 1) {
+      // Tek marker varsa, merkez noktası olarak kullan
+      return undefined
+    }
+
+    // Birden fazla marker varsa, hepsini kapsayan bounds oluştur
+    return markers.map((event) => [event.latitude as number, event.longitude as number]) as LatLngTuple[]
+  }, [markers])
+
+  const center: LatLngTuple = useMemo(() => {
+    if (markers.length === 0) return DEFAULT_CENTER
+
+    if (markers.length === 1) {
+      return [markers[0].latitude as number, markers[0].longitude as number]
+    }
+
+    // Birden fazla marker varsa, merkez noktasını hesapla
+    const avgLat = markers.reduce((sum, m) => sum + (m.latitude as number), 0) / markers.length
+    const avgLng = markers.reduce((sum, m) => sum + (m.longitude as number), 0) / markers.length
+    return [avgLat, avgLng]
+  }, [markers])
 
   const containerClass = className ?? "w-full overflow-hidden rounded-lg border shadow-sm"
   const hasMarkers = markers.length > 0
@@ -156,7 +191,8 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
       <DynamicMapContainer
         center={center}
         bounds={bounds}
-        zoom={zoom}
+        boundsOptions={bounds ? { padding: [50, 50] } : undefined}
+        zoom={markers.length === 1 ? 15 : zoom}
         scrollWheelZoom={false}
         style={{ height: "100%", width: "100%" }}
         key={mapKey}
@@ -183,29 +219,46 @@ export function EventMap({ events, height = 320, zoom = 12, className, onEventCl
                 },
               }}
             >
-              <DynamicPopup className="custom-popup">
-                <div className="space-y-1.5 min-w-[180px]">
-                  <p className="font-semibold text-foreground text-sm leading-tight">{event.title}</p>
+              <DynamicPopup className="custom-popup" maxWidth={280}>
+                <div className="p-3 space-y-2 min-w-[220px]">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <span className="text-base">🎉</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground text-sm leading-tight line-clamp-2">
+                        {event.title}
+                      </p>
+                    </div>
+                  </div>
+
                   {event.location_name && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <span>📍</span>
-                      {event.location_name}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-2.5 py-1.5">
+                      <span className="text-sm">📍</span>
+                      <span className="line-clamp-1">{event.location_name}</span>
+                    </div>
                   )}
+
                   {event.starts_at && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <span>🕒</span>
-                      {new Date(event.starts_at).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-2.5 py-1.5">
+                      <span className="text-sm">🕒</span>
+                      <span>
+                        {new Date(event.starts_at).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
                   )}
-                  <p className="text-xs text-primary pt-1 cursor-pointer hover:underline">
-                    Click to view details →
-                  </p>
+
+                  <div className="pt-1 border-t border-border/50">
+                    <p className="text-xs text-primary font-medium cursor-pointer hover:underline flex items-center gap-1">
+                      <span>View event details</span>
+                      <span className="text-base">→</span>
+                    </p>
+                  </div>
                 </div>
               </DynamicPopup>
             </DynamicMarker>

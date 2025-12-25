@@ -39,6 +39,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { EventMap } from "@/components/event-map"
 import { AddToCalendarButton } from "@/components/add-to-calendar-button"
+import { ShareButton } from "@/components/share-button"
 import { useToast } from "@/hooks/use-toast"
 
 // Types
@@ -452,6 +453,11 @@ export default function EventDetailPage() {
                   </div>
                   {isOwner ? (
                     <div className="flex gap-2">
+                      <ShareButton
+                        title={event.title}
+                        description={event.explanation}
+                        size="sm"
+                      />
                       <Link href={`/events/${event.id}/edit`}>
                         <Button size="sm" variant="outline">
                           <Edit className="mr-2 h-4 w-4" />
@@ -482,13 +488,19 @@ export default function EventDetailPage() {
                       </AlertDialog>
                     </div>
                   ) : (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline">
-                          <Flag className="mr-2 h-4 w-4" />
-                          Report
-                        </Button>
-                      </AlertDialogTrigger>
+                    <div className="flex gap-2">
+                      <ShareButton
+                        title={event.title}
+                        description={event.explanation}
+                        size="sm"
+                      />
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Flag className="mr-2 h-4 w-4" />
+                            Report
+                          </Button>
+                        </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Report Event</AlertDialogTitle>
@@ -510,6 +522,7 @@ export default function EventDetailPage() {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
+                    </div>
                   )}
                 </div>
                 <CardTitle className="text-3xl">{event.title}</CardTitle>

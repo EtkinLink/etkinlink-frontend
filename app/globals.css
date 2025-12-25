@@ -138,6 +138,7 @@
   .leaflet-container {
     font-family: inherit;
     background: hsl(var(--muted) / 0.3) !important;
+    z-index: 1 !important;
   }
 
   .dark .leaflet-container {
@@ -262,5 +263,20 @@
   /* Improved map borders */
   .leaflet-container {
     border-radius: 0.5rem;
+  }
+
+  /* Ensure map controls don't overlap dialogs */
+  .leaflet-pane,
+  .leaflet-tile-pane,
+  .leaflet-overlay-pane,
+  .leaflet-shadow-pane,
+  .leaflet-marker-pane,
+  .leaflet-tooltip-pane,
+  .leaflet-popup-pane {
+    z-index: auto !important;
+  }
+
+  .leaflet-control {
+    z-index: 10 !important;
   }
 }

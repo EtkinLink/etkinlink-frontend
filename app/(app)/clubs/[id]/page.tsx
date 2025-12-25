@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { ShareButton } from "@/components/share-button"
 
 // --- ARAYÜZLER (TYPES) ---
 
@@ -471,9 +472,17 @@ export default function ClubDetailPage() {
                   </p>
                 </div>
 
-                {/* Report Button - Show only if not admin */}
-                {membershipStatus !== 'ADMIN' && user && (
-                  <div className="pt-4 border-t">
+                {/* Share and Report Buttons */}
+                <div className="pt-4 border-t space-y-2">
+                  <ShareButton
+                    title={club.name}
+                    description={club.description || `Join ${club.name} at ${club.university_name}`}
+                    variant="outline"
+                    className="w-full"
+                  />
+
+                  {/* Report Button - Show only if not admin */}
+                  {membershipStatus !== 'ADMIN' && user && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button size="sm" variant="outline" className="w-full">
@@ -502,8 +511,8 @@ export default function ClubDetailPage() {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  </div>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>

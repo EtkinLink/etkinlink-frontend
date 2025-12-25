@@ -18,13 +18,13 @@ export default function HomePage() {
             <Calendar className="h-6 w-6 text-indigo-600" />
             <span className="text-xl font-bold">EtkinLink</span>
           </div>
-          <nav className="flex items-center gap-4">
-            <LanguageSwitcher className="w-[220px]" />
+          <nav className="flex items-center gap-2 sm:gap-4">
+            <LanguageSwitcher className="w-[140px] sm:w-[180px]" />
             <Link href="/auth/login">
-              <Button variant="ghost">{t("nav.signIn")}</Button>
+              <Button variant="ghost" size="sm" className="sm:size-default">{t("nav.signIn")}</Button>
             </Link>
             <Link href="/auth/sign-up">
-              <Button>{t("nav.getStarted")}</Button>
+              <Button size="sm" className="sm:size-default">{t("nav.getStarted")}</Button>
             </Link>
           </nav>
         </div>

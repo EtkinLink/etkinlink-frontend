@@ -5,6 +5,7 @@ import "./globals.css"
 import { Suspense } from "react"
 import { AuthProvider } from "@/lib/auth-context"
 import { I18nProvider } from "@/lib/i18n"
+import { ThemeProvider } from "@/lib/dark-mode-context"
 import { Toaster } from "@/components/ui/toaster"
 import { cookies } from "next/headers"
 
@@ -27,14 +28,16 @@ export default async function RootLayout({
       : "en"
 
   return (
-    <html lang={initialLocale}>
+    <html lang={initialLocale} suppressHydrationWarning>
       <body className="font-sans">
-        <I18nProvider initialLocale={initialLocale}>
-          <AuthProvider>
-            <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-            <Toaster />
-          </AuthProvider>
-        </I18nProvider>
+        <ThemeProvider>
+          <I18nProvider initialLocale={initialLocale}>
+            <AuthProvider>
+              <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+              <Toaster />
+            </AuthProvider>
+          </I18nProvider>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

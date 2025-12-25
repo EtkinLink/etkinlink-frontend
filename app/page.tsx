@@ -5,6 +5,7 @@ import { Calendar, Users, Sparkles, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { useI18n } from "@/lib/i18n"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function HomePage() {
   const { t } = useI18n()
@@ -15,10 +16,11 @@ export default function HomePage() {
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <Calendar className="h-6 w-6 text-indigo-600" />
+            <Calendar className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
             <span className="text-xl font-bold">EtkinLink</span>
           </div>
           <nav className="flex items-center gap-2 sm:gap-4">
+            <ThemeToggle />
             <LanguageSwitcher className="w-[140px] sm:w-[180px]" />
             <Link href="/auth/login">
               <Button variant="ghost" size="sm" className="sm:size-default">{t("nav.signIn")}</Button>
@@ -31,15 +33,15 @@ export default function HomePage() {
       </header>
 
       {/* Hero Section */}
-      <section className="flex-1 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <section className="flex-1 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="container flex flex-col items-center justify-center gap-8 py-24 text-center">
-          <div className="flex items-center gap-2 rounded-full bg-indigo-100 px-4 py-2 text-sm font-medium text-indigo-700">
+          <div className="flex items-center gap-2 rounded-full bg-indigo-100 dark:bg-indigo-950/50 px-4 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-400">
             <Sparkles className="h-4 w-4" />
             <span>{t("landing.badge")}</span>
           </div>
 
           <h1 className="max-w-4xl text-balance text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-            {t("landing.heroTitle")} <span className="text-indigo-600">{t("landing.heroHighlight")}</span>
+            {t("landing.heroTitle")} <span className="text-indigo-600 dark:text-indigo-400">{t("landing.heroHighlight")}</span>
           </h1>
 
           <p className="max-w-2xl text-pretty text-lg text-muted-foreground sm:text-xl">

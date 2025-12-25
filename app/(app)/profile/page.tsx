@@ -293,7 +293,7 @@ export default function ProfilePage() {
                 {/* Avatar */}
                 <div className="flex flex-col items-center">
                   <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
-                    <AvatarFallback className="text-3xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                    <AvatarFallback className="text-3xl bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 text-white">
                       {user.name?.[0]?.toUpperCase() ?? 'U'}
                     </AvatarFallback>
                   </Avatar>
@@ -381,30 +381,30 @@ export default function ProfilePage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-none">
+                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-none">
                       <CardContent className="pt-4 pb-4 text-center">
-                        <p className="text-2xl font-bold text-indigo-600">{participantEvents.length}</p>
+                        <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{participantEvents.length}</p>
                         <p className="text-xs text-muted-foreground mt-1">Joined</p>
                       </CardContent>
                     </Card>
-                    <Card className="bg-gradient-to-br from-emerald-50 to-green-50 border-none">
+                    <Card className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border-none">
                       <CardContent className="pt-4 pb-4 text-center">
-                        <p className="text-2xl font-bold text-emerald-600">{myOwnedEvents.length}</p>
+                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{myOwnedEvents.length}</p>
                         <p className="text-xs text-muted-foreground mt-1">Created</p>
                       </CardContent>
                     </Card>
-                    <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-none">
+                    <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border-none">
                       <CardContent className="pt-4 pb-4 text-center">
-                        <p className="text-2xl font-bold text-purple-600">{myClubs.length}</p>
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{myClubs.length}</p>
                         <p className="text-xs text-muted-foreground mt-1">Clubs</p>
                       </CardContent>
                     </Card>
                     <Link href="/my-reports" className="block">
-                      <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-none hover:shadow-md transition-all cursor-pointer">
+                      <Card className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 border-none hover:shadow-md transition-all cursor-pointer">
                         <CardContent className="pt-4 pb-4 text-center">
                           <div className="flex items-center justify-center gap-1 mb-1">
-                            <Flag className="h-4 w-4 text-orange-600" />
-                            <p className="text-2xl font-bold text-orange-600">{myReports.length}</p>
+                            <Flag className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                            <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{myReports.length}</p>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">Reports</p>
                         </CardContent>
@@ -440,7 +440,7 @@ export default function ProfilePage() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5 text-indigo-600" />
+                      <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                       Upcoming Events ({upcomingEvents.length})
                     </CardTitle>
                     <CardDescription>Events you&apos;re registered for</CardDescription>

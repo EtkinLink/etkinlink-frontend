@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar, LogOut, Users, User } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 // Bu layout, (app) grubundaki tüm sayfaları sarar
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -52,7 +53,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           {/* Logo */}
           <Link href="/events" className="flex items-center gap-2 flex-shrink-0">
-            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
+            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 dark:text-indigo-400" />
             <span className="text-lg sm:text-xl font-bold">EtkinLink</span>
           </Link>
 
@@ -83,6 +84,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </Button>
               </nav>
             )}
+            <ThemeToggle />
             <LanguageSwitcher className="w-[70px] sm:w-[140px] md:w-[180px]" />
           </div>
         </div>

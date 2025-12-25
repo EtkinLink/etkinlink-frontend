@@ -114,7 +114,6 @@ function getEventTypeIcon(eventType: string | null | undefined) {
 }
 
 export default function EventsPage() {
-  const PER_PAGE = 6
   const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const { t, locale } = useI18n()
@@ -129,6 +128,8 @@ export default function EventsPage() {
   const [dateTo, setDateTo] = useState("")
   const [showCompletedEvents, setShowCompletedEvents] = useState(false)
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(12)
+  const [totalEvents, setTotalEvents] = useState(0)
   const [viewMode, setViewMode] = useState<"all" | "nearby">("all")
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
 
@@ -184,8 +185,13 @@ export default function EventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true)
     try {
-      // Fetch more events to handle client-side filtering with pagination
-      const params: any = { page: 1, per_page: 100, sort: "starts_at", order: "desc" }
+      // Use backend pagination
+      const params: any = {
+        page,
+        per_page: perPage,
+        sort: "starts_at",
+        order: "desc"
+      }
 
       // Filtreleme parametrelerini ekle
       if (selectedType !== "all") params.type = selectedType
@@ -193,37 +199,27 @@ export default function EventsPage() {
       if (dateFrom) params.from = dateFrom
       if (dateTo) params.to = dateTo
 
-      let allEvents: Event[] = []
-
-      if (viewMode === "nearby" && userLocation) {
-        const response = await api.getNearbyEvents(userLocation.lat, userLocation.lng, 10, params)
-        allEvents = response.items || []
-      } else {
-        const response = await api.filterEvents(params)
-        allEvents = response.items || []
+      // Status filter for backend
+      if (showCompletedEvents) {
+        params.status = "COMPLETED"
       }
 
-      // Client-side status filtering
-      const filteredEvents = showCompletedEvents
-        ? allEvents.filter((ev: Event) =>
-            ev.status === "COMPLETED" || ev.status === "CANCELLED"
-          )
-        : allEvents.filter((ev: Event) =>
-            ev.status !== "COMPLETED" && ev.status !== "CANCELLED"
-          )
+      let response: any
 
-      // Client-side pagination
-      const startIndex = (page - 1) * PER_PAGE
-      const endIndex = startIndex + PER_PAGE
-      const paginatedEvents = filteredEvents.slice(startIndex, endIndex)
+      if (viewMode === "nearby" && userLocation) {
+        response = await api.getNearbyEvents(userLocation.lat, userLocation.lng, 10, params)
+      } else {
+        response = await api.filterEvents(params)
+      }
 
-      setEvents(paginatedEvents)
+      setEvents(response.items || [])
+      setTotalEvents(response.pagination?.total || response.items?.length || 0)
     } catch (err) {
       console.error("Failed to fetch events:", err)
     } finally {
       setIsLoading(false)
     }
-  }, [page, viewMode, userLocation, selectedType, searchQuery, dateFrom, dateTo, showCompletedEvents])
+  }, [page, perPage, viewMode, userLocation, selectedType, searchQuery, dateFrom, dateTo, showCompletedEvents])
 
   // --- Fetch Events ---
   useEffect(() => {
@@ -371,22 +367,55 @@ export default function EventsPage() {
                   })}
                 </div>
 
-                <div className="flex items-center justify-center gap-3 pt-4">
-                  <Button
-                    variant="outline"
-                    disabled={page === 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    {t("common.previous")}
-                  </Button>
-                  <span className="text-sm text-muted-foreground">{t("common.page", { page })}</span>
-                  <Button
-                    variant="outline"
-                    disabled={events.length < PER_PAGE}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    {t("common.next")}
-                  </Button>
+                {/* Pagination Controls */}
+                <div className="space-y-4 pt-4">
+                  {/* Results info and per page selector */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {events.length > 0 ? (page - 1) * perPage + 1 : 0} - {Math.min(page * perPage, totalEvents)} of {totalEvents} events
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Per page:</span>
+                      <Select
+                        value={perPage.toString()}
+                        onValueChange={(value) => {
+                          setPerPage(Number(value))
+                          setPage(1) // Reset to first page when changing per page
+                        }}
+                      >
+                        <SelectTrigger className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="6">6</SelectItem>
+                          <SelectItem value="12">12</SelectItem>
+                          <SelectItem value="24">24</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Page navigation */}
+                  <div className="flex items-center justify-center gap-3">
+                    <Button
+                      variant="outline"
+                      disabled={page === 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      {t("common.previous")}
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {page} of {Math.max(1, Math.ceil(totalEvents / perPage))}
+                    </span>
+                    <Button
+                      variant="outline"
+                      disabled={page >= Math.ceil(totalEvents / perPage)}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      {t("common.next")}
+                    </Button>
+                  </div>
                 </div>
               </>
             )}

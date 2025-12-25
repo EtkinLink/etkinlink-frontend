@@ -190,7 +190,7 @@ export default function EventsPage() {
         page,
         per_page: perPage,
         sort: "starts_at",
-        order: "desc"
+        order: "asc" // Yaklaşan eventleri önce göster
       }
 
       // Filtreleme parametrelerini ekle
@@ -201,7 +201,11 @@ export default function EventsPage() {
 
       // Status filter for backend
       if (showCompletedEvents) {
-        params.status = "COMPLETED"
+        params.past_events = "true"
+      } else {
+        // By default, backend should return only FUTURE events
+        // If backend doesn't filter by default, we need to specify status
+        params.status = "FUTURE"
       }
 
       let response: any
